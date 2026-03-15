@@ -181,7 +181,6 @@ The viewer displays the content of the currently selected file in the navigator.
 | Markdown (`.md`, `.mdx`, `.markdown`, `.txt`)            | Rich text editor with frontmatter support, cover images, and wiki-style links |
 | Code (all other text files)                              | Syntax-highlighted editor with line numbers                                   |
 | Image (`.png`, `.jpg`, `.jpeg`, `.gif`, `.svg`, `.webp`) | Image display with metadata                                                   |
-| Folder                                                   | Table listing of directory contents                                           |
 
 Markdown and code files support inline editing in the viewer. The viewer watches for external file changes on disk and reloads automatically.
 
