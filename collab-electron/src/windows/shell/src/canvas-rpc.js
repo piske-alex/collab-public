@@ -1,0 +1,168 @@
+import {
+	tiles, getTile, defaultSize, snapToGrid,
+} from "./canvas-state.js";
+
+/**
+ * Find a non-overlapping position on the canvas for a tile of the
+ * given size. Scans on a 20 px grid within a 4000x3000 region.
+ */
+export function findAutoPlacement(existingTiles, width, height) {
+	const CANVAS_W = 4000;
+	const CANVAS_H = 3000;
+	const STEP = 20;
+
+	for (let y = 0; y <= CANVAS_H - height; y += STEP) {
+		for (let x = 0; x <= CANVAS_W - width; x += STEP) {
+			const overlaps = existingTiles.some((t) =>
+				x < t.x + t.width &&
+				x + width > t.x &&
+				y < t.y + t.height &&
+				y + height > t.y,
+			);
+			if (!overlaps) return { x, y };
+		}
+	}
+
+	const last = existingTiles[existingTiles.length - 1];
+	if (last) return { x: last.x + 40, y: last.y + 40 };
+	return { x: 40, y: 40 };
+}
+
+/**
+ * Create the canvas RPC request handler.
+ *
+ * Methods: tileList, tileAdd, tileRemove, tileMove, tileResize,
+ *          viewportGet, viewportSet.
+ */
+export function createCanvasRpc({
+	tileManager, viewportState, viewport, workspaceManager,
+}) {
+	function respond(requestId, result) {
+		window.shellApi.canvasRpcResponse({ requestId, result });
+	}
+
+	function respondError(requestId, code, message) {
+		window.shellApi.canvasRpcResponse({
+			requestId, error: { code, message },
+		});
+	}
+
+	function requireTile(requestId, tileId) {
+		const tile = getTile(tileId);
+		if (!tile) {
+			respondError(requestId, 3, "Tile not found");
+			return null;
+		}
+		return tile;
+	}
+
+	return function handleCanvasRpc(request) {
+		const { requestId, method, params } = request;
+
+		try {
+			let result;
+			switch (method) {
+				case "tileList": {
+					result = {
+						tiles: tiles.map((t) => ({
+							id: t.id,
+							type: t.type,
+							filePath: t.filePath,
+							folderPath: t.folderPath,
+							position: { x: t.x, y: t.y },
+							size: { width: t.width, height: t.height },
+						})),
+					};
+					break;
+				}
+				case "tileAdd": {
+					const tileType = params.tileType || "note";
+					const size = defaultSize(tileType);
+					const pos = params.position
+						? { x: params.position.x, y: params.position.y }
+						: findAutoPlacement(tiles, size.width, size.height);
+
+					let tile;
+					if (tileType === "graph") {
+						const ws = workspaceManager.getActiveWorkspace();
+						const wsPath = ws?.path ?? "";
+						tile = tileManager.createGraphTile(
+							pos.x, pos.y, params.filePath, wsPath,
+						);
+					} else {
+						tile = tileManager.createFileTile(
+							tileType, pos.x, pos.y, params.filePath,
+						);
+					}
+					tileManager.saveCanvasImmediate();
+					result = { tileId: tile.id };
+					break;
+				}
+				case "tileRemove": {
+					if (!requireTile(requestId, params.tileId)) return;
+					tileManager.closeCanvasTile(params.tileId);
+					result = {};
+					break;
+				}
+				case "tileMove": {
+					const tile = requireTile(requestId, params.tileId);
+					if (!tile) return;
+					tile.x = params.position.x;
+					tile.y = params.position.y;
+					snapToGrid(tile);
+					tileManager.repositionAllTiles();
+					tileManager.saveCanvasImmediate();
+					result = {};
+					break;
+				}
+				case "tileResize": {
+					const tile = requireTile(requestId, params.tileId);
+					if (!tile) return;
+					tile.width = params.size.width;
+					tile.height = params.size.height;
+					snapToGrid(tile);
+					tileManager.repositionAllTiles();
+					tileManager.saveCanvasImmediate();
+					result = {};
+					break;
+				}
+				case "viewportGet": {
+					result = {
+						pan: {
+							x: viewportState.panX,
+							y: viewportState.panY,
+						},
+						zoom: viewportState.zoom,
+					};
+					break;
+				}
+				case "viewportSet": {
+					if (params.pan) {
+						viewportState.panX = params.pan.x;
+						viewportState.panY = params.pan.y;
+					}
+					if (params.zoom !== undefined) {
+						viewportState.zoom = params.zoom;
+					}
+					viewport.updateCanvas();
+					tileManager.saveCanvasDebounced();
+					result = {};
+					break;
+				}
+				default: {
+					respondError(
+						requestId, -32601,
+						`Unknown method: ${method}`,
+					);
+					return;
+				}
+			}
+			respond(requestId, result);
+		} catch (err) {
+			respondError(
+				requestId, -32603,
+				err.message || "Internal error",
+			);
+		}
+	};
+}
