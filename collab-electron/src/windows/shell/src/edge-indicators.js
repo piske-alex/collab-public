@@ -97,7 +97,7 @@ export function createEdgeIndicators({
 				dom.container.classList.remove(
 					"edge-indicator-highlight",
 				);
-			}, 600);
+			}, 1200);
 		}
 
 		function step(now) {

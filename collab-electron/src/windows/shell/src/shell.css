@@ -739,8 +739,13 @@ body {
 }
 
 .canvas-tile.edge-indicator-highlight {
-	border-color: #4a9eff;
-	transition: border-color 0.25s ease;
+	animation: seek-highlight-flash 1.2s ease;
+}
+
+@keyframes seek-highlight-flash {
+	0% { border-color: rgba(128, 128, 128, 0.2); }
+	25% { border-color: #4a9eff; }
+	100% { border-color: rgba(128, 128, 128, 0.2); }
 }
 
 /* ── Canvas tiles ── */
@@ -754,7 +759,6 @@ body {
 	background: var(--bg);
 	border: 1px solid rgba(128, 128, 128, 0.2);
 	user-select: none;
-	transition: border-color 1s ease;
 }
 
 .canvas-tile.tile-focused {
