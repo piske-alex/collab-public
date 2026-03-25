@@ -1,6 +1,7 @@
 import {
   app,
   BrowserWindow,
+  dialog,
   ipcMain,
   Menu,
   nativeTheme,
@@ -704,12 +705,15 @@ app.whenReady().then(async () => {
 
   shuttingDown = false;
 
-  try {
-    pty.verifyTmuxAvailable();
-  } catch (err) {
-    console.error(
-      "tmux binary not found or not executable:", err,
-    );
+  const tmuxCheck = pty.verifyTmuxAvailable();
+  if (!tmuxCheck.ok) {
+    console.error("tmux check failed:", tmuxCheck.message);
+    if (!app.isPackaged) {
+      dialog.showErrorBox(
+        "tmux not found",
+        `${tmuxCheck.message}\n\nThe terminal will not work until tmux is installed and on your PATH.`,
+      );
+    }
   }
 
   config = loadConfig();

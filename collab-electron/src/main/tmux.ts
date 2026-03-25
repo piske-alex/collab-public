@@ -71,10 +71,29 @@ function tmuxEnv(): Record<string, string> | undefined {
 }
 
 export function tmuxExec(...args: string[]): string {
-  return execFileSync(
-    getTmuxBin(), [...baseArgs(), ...args],
-    { encoding: "utf8", timeout: 5000, env: tmuxEnv() },
-  ).trim();
+  try {
+    return execFileSync(
+      getTmuxBin(), [...baseArgs(), ...args],
+      { encoding: "utf8", timeout: 5000, env: tmuxEnv() },
+    ).trim();
+  } catch (err: unknown) {
+    if (isEnoent(err)) {
+      const app = getApp();
+      const hint = app?.isPackaged
+        ? "Bundled tmux binary is missing from resources."
+        : "tmux is required for dev mode. Install it with: brew install tmux";
+      throw new Error(hint);
+    }
+    throw err;
+  }
+}
+
+function isEnoent(err: unknown): boolean {
+  return (
+    err instanceof Error &&
+    "code" in err &&
+    (err as NodeJS.ErrnoException).code === "ENOENT"
+  );
 }
 
 export function tmuxExecAsync(

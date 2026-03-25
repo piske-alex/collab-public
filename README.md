@@ -22,16 +22,25 @@ curl -fsSL https://raw.githubusercontent.com/collaborator-ai/collab-public/main/
 
 Collaborator is a native desktop app built with:
 
-- **Electron 40** — desktop shell with multi-webview architecture
-- **React 19** — UI framework
-- **Tailwind CSS 4** — styling
-- **electron-vite** — build tooling with hot reload
-- **xterm.js** — terminal emulation, backed by tmux sessions for persistence
-- **Monaco Editor** — code editing with syntax highlighting
-- **BlockNote / TipTap** — rich text markdown editing
-- **D3** — force-directed graph visualization
-- **sharp** — image processing
-- **KaTeX** — math rendering in markdown
+* **Electron 40** — desktop shell with multi-webview architecture
+
+* **React 19** — UI framework
+
+* **Tailwind CSS 4** — styling
+
+* **electron-vite** — build tooling with hot reload
+
+* **xterm.js** — terminal emulation, backed by tmux sessions for persistence
+
+* **Monaco Editor** — code editing with syntax highlighting
+
+* **BlockNote / TipTap** — rich text markdown editing
+
+* **D3** — force-directed graph visualization
+
+* **sharp** — image processing
+
+* **KaTeX** — math rendering in markdown
 
 All data is stored locally on disk.
 
@@ -239,5 +248,73 @@ Canvas state is saved 500ms after each change (debounced) and immediately when t
    <img alt="Star History Chart" src="https://api.star-history.com/image?repos=collaborator-ai/collab-public&type=timeline&legend=top-left" />
  </picture>
 </a>
+
+## Development | Electron App
+
+### Prerequisites (macOS)
+
+These instructions are for macOS. You'll need a few tools installed before you can run Collaborator locally. All of them can be installed using Homebrew.
+
+#### 1. Homebrew (macOS package manager)
+
+If you don't already have Homebrew, install it first:
+
+```sh
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+```
+
+After it finishes, follow any instructions about adding `brew` to your PATH.
+
+#### 2. Node.js (v22+)
+
+```sh
+brew install node
+```
+
+#### 3. Bun
+
+Bun is used instead of npm for installing packages and running tests:
+
+```sh
+brew install oven-sh/bun/bun
+```
+
+#### 4. tmux
+
+tmux is the program that powers Collaborator's terminal sessions. Without it, terminals won't work:
+
+```sh
+brew install tmux
+```
+
+### Setup
+
+Once the prerequisites are installed, clone the repo and install dependencies:
+
+```sh
+git clone https://github.com/collaborator-ai/collab-public.git
+cd collab-public/collab-electron
+bun install
+```
+
+### Run in dev mode
+
+```sh
+bun run dev
+```
+
+This starts the Electron app with hot reload via electron-vite.
+
+### Run tests
+
+```sh
+bun test
+```
+
+### Build
+
+```sh
+bun run build
+```
 
 ⠀

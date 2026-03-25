@@ -480,6 +480,14 @@ export function cleanDetachedSessions(
   }
 }
 
-export function verifyTmuxAvailable(): void {
-  tmuxExec("-V");
+export function verifyTmuxAvailable(): { ok: true } | { ok: false; message: string } {
+  try {
+    tmuxExec("-V");
+    return { ok: true };
+  } catch (err: unknown) {
+    const message = err instanceof Error
+      ? err.message
+      : "tmux binary not found or not executable";
+    return { ok: false, message };
+  }
 }
