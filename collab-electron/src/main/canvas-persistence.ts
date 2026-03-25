@@ -130,7 +130,7 @@ async function ensureDir(dir: string): Promise<void> {
   }
 }
 
-async function shouldCreateBackup(): Promise<boolean> {
+function shouldCreateBackup(): boolean {
   const now = Date.now();
   if (saveCountSinceBackup >= BACKUP_EVERY_N_SAVES) return true;
   if (now - lastBackupTime >= BACKUP_INTERVAL_MS) return true;
@@ -189,7 +189,7 @@ export async function saveState(state: CanvasState): Promise<void> {
   dirty = true;
   saveCountSinceBackup++;
 
-  if (await shouldCreateBackup()) {
+  if (shouldCreateBackup()) {
     await createBackup();
   }
 }

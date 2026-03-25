@@ -1285,7 +1285,7 @@ async function init() {
 		// left behind after a crash or app translocation).
 		// Delay to allow terminal tile webviews to reconnect first.
 		setTimeout(() => {
-			window.shellApi.ptyCleanupOrphanClients?.(activeSessionIds)
+			window.shellApi.ptyCleanupOrphanClients(activeSessionIds)
 				.then((killed) => {
 					if (killed > 0) {
 						console.log(

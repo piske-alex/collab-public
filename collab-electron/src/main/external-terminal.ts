@@ -18,7 +18,7 @@ export function openInITerm2(sessionName: string): Promise<void> {
   const tmuxBin = getTmuxBin();
   const socket = getSocketName();
   const conf = getTmuxConf();
-  const cmd = `${tmuxBin} -L ${socket} -f '${conf}' -u attach-session -t ${sessionName}`;
+  const cmd = `'${tmuxBin}' -L ${socket} -f '${conf}' -u attach-session -t ${sessionName}`;
   const escaped = escapeAppleScriptString(cmd);
 
   return new Promise((resolve, reject) => {
