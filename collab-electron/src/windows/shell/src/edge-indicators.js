@@ -89,6 +89,17 @@ export function createEdgeIndicators({
 			return 1 - Math.pow(1 - t, 3);
 		}
 
+		const tileDOMs = getTileDOMs();
+		const dom = tileDOMs.get(tile.id);
+		if (dom) {
+			dom.container.classList.add("edge-indicator-highlight");
+			setTimeout(() => {
+				dom.container.classList.remove(
+					"edge-indicator-highlight",
+				);
+			}, 1200);
+		}
+
 		function step(now) {
 			const elapsed = now - startTime;
 			const t = Math.min(elapsed / DURATION, 1);
@@ -101,16 +112,6 @@ export function createEdgeIndicators({
 				panAnimRaf = requestAnimationFrame(step);
 			} else {
 				panAnimRaf = null;
-				const tileDOMs = getTileDOMs();
-				const dom = tileDOMs.get(tile.id);
-				if (dom) {
-					dom.container.classList.add("edge-indicator-highlight");
-					setTimeout(() => {
-						dom.container.classList.remove(
-							"edge-indicator-highlight",
-						);
-					}, 600);
-				}
 			}
 		}
 
@@ -236,5 +237,6 @@ export function createEdgeIndicators({
 		update() {
 			updateEdgeIndicators();
 		},
+		panToTile,
 	};
 }

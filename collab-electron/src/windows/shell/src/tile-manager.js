@@ -18,6 +18,9 @@ export function createTileManager({
 	getAllWebviews, isSpaceHeld,
 	onSaveDebounced, onSaveImmediate,
 	onNoteSurfaceFocus, onFocusSurface,
+	onTerminalSessionCreated,
+	onTerminalTileClosed,
+	onTileFocused,
 }) {
 	/** @type {Map<string, {container: HTMLElement, contentArea: HTMLElement, titleText: HTMLElement, webview?: HTMLElement}>} */
 	const tileDOMs = new Map();
@@ -143,6 +146,9 @@ export function createTileManager({
 				blurCanvasTileGuest(focusedTileId);
 			}
 			focusedTileId = id;
+			if (onTileFocused) {
+				onTileFocused(tile);
+			}
 			clearTileFocusRing();
 			dom.container.classList.add("tile-focused");
 			dom.webview.focus();
@@ -197,6 +203,9 @@ export function createTileManager({
 			if (event.channel === "pty-session-id") {
 				tile.ptySessionId = event.args[0];
 				saveCanvasDebounced();
+				if (onTerminalSessionCreated) {
+					onTerminalSessionCreated(tile);
+				}
 			}
 		});
 	}
@@ -500,6 +509,12 @@ export function createTileManager({
 			window.shellApi.trackEvent(
 				"tile_closed", { type: tile.type },
 			);
+			if (tile.type === "term" && tile.ptySessionId) {
+				window.shellApi.ptyKillSession(tile.ptySessionId);
+				if (onTerminalTileClosed) {
+					onTerminalTileClosed(tile.ptySessionId);
+				}
+			}
 		}
 		removeTile(id);
 		saveCanvasImmediate();

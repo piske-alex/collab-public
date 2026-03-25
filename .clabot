@@ -1,4 +1,0 @@
-{
-  "contributors": ["yiliushenburke"],
-  "message": "Thanks for the pull request! It looks like {{usersWithoutCLA}} haven't signed our [Contributor License Agreement](CLA.md) yet. Please read and agree to the CLA, then let us know here."
-}

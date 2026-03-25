@@ -85,6 +85,7 @@ export default function App() {
 	const [focusedFolder, setFocusedFolder] = useState<string | null>(null);
 	const [workspacePath, setWorkspacePath] = useState<string | null>(null);
 	const [fileContent, setFileContent] = useState("");
+	const lastWrittenContentRef = useRef<string | null>(null);
 	const [loadedPath, setLoadedPath] = useState<string | null>(null);
 	const [fileStats, setFileStats] = useState<{
 		ctime: string;
@@ -229,6 +230,9 @@ export default function App() {
 			])
 				.then(([content, stats]) => {
 					fileMtimeRef.current = stats.mtime;
+					if (lastWrittenContentRef.current !== null && content === lastWrittenContentRef.current) {
+						return;
+					}
 					setFileContent(content);
 					setFileStats(stats);
 				})
@@ -279,6 +283,7 @@ export default function App() {
 		if (!selectedPath) {
 			latestLoadTokenRef.current = null;
 			fileMtimeRef.current = null;
+			lastWrittenContentRef.current = null;
 			setFileContent("");
 			setLoadedPath(null);
 			setFileStats(null);
@@ -376,6 +381,7 @@ export default function App() {
 			if (!loadedPath || !viewerItem) return;
 			if (selectedPathRef.current !== loadedPath) return;
 			const content = serializeViewerItem(viewerItem, text);
+			lastWrittenContentRef.current = content;
 			const result = await window.api.writeFile(
 				loadedPath,
 				content,
@@ -390,6 +396,7 @@ export default function App() {
 	const saveCodeContent = useCallback(
 		async (text: string) => {
 			if (!loadedPath) return;
+			lastWrittenContentRef.current = text;
 			const result = await window.api.writeFile(
 				loadedPath,
 				text,

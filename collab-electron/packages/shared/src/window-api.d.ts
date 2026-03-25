@@ -227,6 +227,7 @@ export interface CollabApi {
       meta: { shell: string; cwd: string; createdAt: string };
     }>
   >;
+  ptyCleanDetached: (activeSessionIds: string[]) => Promise<void>;
   notifyPtySessionId: (sessionId: string) => void;
   onPtyData: (cb: PtyDataCb) => void;
   offPtyData: (cb: PtyDataCb) => void;

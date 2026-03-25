@@ -1,7 +1,10 @@
 import { describe, test, expect, afterEach } from "bun:test";
 import * as fs from "node:fs";
+import { spawn, type ChildProcess } from "node:child_process";
 import {
+  getTmuxBin,
   getTmuxConf,
+  getSocketName,
   writeSessionMeta,
   readSessionMeta,
   deleteSessionMeta,
@@ -15,6 +18,7 @@ import {
   listSessions,
   killAll,
   discoverSessions,
+  cleanDetachedSessions,
   verifyTmuxAvailable,
 } from "./pty";
 
@@ -150,6 +154,103 @@ describe("discoverSessions", () => {
       alive = false;
     }
     expect(alive).toBe(false);
+  });
+});
+
+describe("cleanDetachedSessions", () => {
+  test("kills sessions not in the active list", () => {
+    const { sessionId: keep } = createSession("/tmp");
+    const { sessionId: detached } = createSession("/tmp");
+    killAll(); // detach clients, tmux sessions survive
+
+    cleanDetachedSessions([keep]);
+
+    // The kept session should still exist
+    const discovered = discoverSessions();
+    expect(
+      discovered.some((s) => s.sessionId === keep),
+    ).toBe(true);
+
+    // The detached session should be gone
+    const name = tmuxSessionName(detached);
+    let alive = true;
+    try {
+      tmuxExec("has-session", "-t", name);
+    } catch {
+      alive = false;
+    }
+    expect(alive).toBe(false);
+
+    // Clean up
+    try {
+      tmuxExec(
+        "kill-session", "-t", tmuxSessionName(keep),
+      );
+    } catch {}
+    deleteSessionMeta(keep);
+    deleteSessionMeta(detached);
+  });
+
+  test("no-op when all sessions are active", () => {
+    const { sessionId } = createSession("/tmp");
+    killAll();
+
+    cleanDetachedSessions([sessionId]);
+
+    const discovered = discoverSessions();
+    expect(
+      discovered.some((s) => s.sessionId === sessionId),
+    ).toBe(true);
+
+    // Clean up
+    try {
+      tmuxExec(
+        "kill-session", "-t", tmuxSessionName(sessionId),
+      );
+    } catch {}
+    deleteSessionMeta(sessionId);
+  });
+
+  test("preserves sessions with attached tmux clients", async () => {
+    const sessionId = "test-attached-" + Date.now().toString(16);
+    const name = tmuxSessionName(sessionId);
+
+    tmuxExec(
+      "new-session", "-d", "-s", name,
+      "-x", "80", "-y", "24",
+    );
+    writeSessionMeta(sessionId, {
+      shell: "/bin/zsh",
+      cwd: "/tmp",
+      createdAt: new Date().toISOString(),
+    });
+
+    // Attach a control-mode client (node-pty doesn't
+    // register as attached under bun's runtime)
+    const client = spawn(
+      getTmuxBin(),
+      ["-L", getSocketName(), "-u", "-C",
+        "attach-session", "-t", name],
+      { stdio: ["pipe", "pipe", "pipe"] },
+    );
+
+    await Bun.sleep(100);
+
+    // Not in active list, but has an attached client
+    cleanDetachedSessions([]);
+
+    let alive = true;
+    try {
+      tmuxExec("has-session", "-t", name);
+    } catch {
+      alive = false;
+    }
+    expect(alive).toBe(true);
+
+    // Clean up
+    client.kill();
+    try { tmuxExec("kill-session", "-t", name); } catch {}
+    deleteSessionMeta(sessionId);
   });
 });
 

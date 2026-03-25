@@ -1,7 +1,17 @@
 /**
- * Panel resize, nav visibility, and preference persistence.
+ * Generic panel factory for left/right sidebar panels.
+ *
+ * @param {string} side - Panel identifier ("nav", "terminal")
+ * @param {object} config
+ * @param {HTMLElement} config.panel - The panel DOM element
+ * @param {HTMLElement} config.resizeHandle - The resize drag handle
+ * @param {HTMLElement} config.toggle - The toggle button
+ * @param {string} config.label - Human-readable label ("Navigator", "Terminals")
+ * @param {number} config.defaultWidth - Default panel width in pixels
+ * @param {1|-1} config.direction - Resize drag direction: 1=left panel, -1=right panel
+ * @param {() => Array} [config.getAllWebviews] - Returns all webviews for pointer-event blocking during resize
+ * @param {(visible: boolean) => void} [config.onVisibilityChanged] - Called when visibility changes
  */
-
 function getPanelConstraints(side) {
 	const s = getComputedStyle(document.documentElement);
 	const min = parseInt(
@@ -13,101 +23,104 @@ function getPanelConstraints(side) {
 	return { min, max };
 }
 
-export function createPanelManager({
-	panelNav, panelViewer, navResizeHandle, navToggle,
-	getAllWebviews, onNavVisibilityChanged,
-}) {
-	let navVisible = true;
-	const _prefCache = {};
+export function createPanel(side, config) {
+	const {
+		panel, resizeHandle, toggle,
+		label, defaultWidth, direction,
+		getAllWebviews = () => [],
+		onVisibilityChanged = () => {},
+	} = config;
 
-	function savePanelPref(key, value) {
-		_prefCache[key] = value;
+	let visible = true;
+	const prefCache = {};
+
+	function savePref(key, value) {
+		prefCache[key] = value;
 		window.shellApi.setPref(key, value);
 	}
 
-	function loadPanelPref(key) {
-		const value = _prefCache[key];
+	function loadPref(key) {
+		const value = prefCache[key];
 		if (value == null) return null;
 		return value;
 	}
 
-	function savePanelVisible(panel, visible) {
-		_prefCache[`panel-visible-${panel}`] = visible;
-		window.shellApi.setPref(`panel-visible-${panel}`, visible);
-	}
-
-	function loadPanelVisible(panel, fallback) {
-		const value = _prefCache[`panel-visible-${panel}`];
-		if (value == null) return fallback;
-		return !!value;
-	}
-
-	function updateTogglePositions() {
+	function updateTogglePosition() {
 		const panelsEl = document.getElementById("panels");
 		const panelsRect = panelsEl.getBoundingClientRect();
 		const centerY = panelsRect.top + panelsRect.height / 2;
 
-		if (navVisible) {
-			const navRect = panelNav.getBoundingClientRect();
-			navToggle.style.left = `${navRect.right + 8}px`;
+		if (direction === 1) {
+			// Left panel: toggle sits right of the panel
+			if (visible) {
+				const rect = panel.getBoundingClientRect();
+				toggle.style.left = `${rect.right + 8}px`;
+			} else {
+				toggle.style.left = `${panelsRect.left + 8}px`;
+			}
+			toggle.style.right = "";
 		} else {
-			navToggle.style.left = `${panelsRect.left + 8}px`;
+			// Right panel: toggle sits left of the panel
+			if (visible) {
+				const rect = panel.getBoundingClientRect();
+				toggle.style.right =
+					`${panelsRect.right - rect.left + 8}px`;
+			} else {
+				toggle.style.right = `${8}px`;
+			}
+			toggle.style.left = "";
 		}
-		navToggle.style.top = `${centerY}px`;
-		navToggle.style.transform = "translateY(-50%)";
+		toggle.style.top = `${centerY}px`;
+		toggle.style.transform = "translateY(-50%)";
 	}
 
-	function applyNavVisibility() {
-		if (navVisible) {
-			panelNav.style.display = "";
-			navResizeHandle.style.display = "";
-			const stored = loadPanelPref("panel-width-nav");
-			const px = stored != null && stored > 1 ? stored : 280;
-			panelNav.style.flex = `0 0 ${px}px`;
-			panelViewer.style.flex = "1 1 0";
+	function applyVisibility() {
+		if (visible) {
+			panel.style.display = "";
+			resizeHandle.style.display = "";
+			const stored = loadPref(`panel-width-${side}`);
+			const px =
+				stored != null && stored > 1 ? stored : defaultWidth;
+			panel.style.flex = `0 0 ${px}px`;
 		} else {
-			panelNav.style.display = "none";
-			navResizeHandle.style.display = "none";
-			panelViewer.style.flex = "";
+			panel.style.display = "none";
+			resizeHandle.style.display = "none";
 		}
-		navToggle.setAttribute(
-			"aria-pressed", String(navVisible),
-		);
-		navToggle.setAttribute(
+		toggle.setAttribute("aria-pressed", String(visible));
+		toggle.setAttribute(
 			"aria-label",
-			navVisible ? "Hide Navigator" : "Show Navigator",
+			visible ? `Hide ${label}` : `Show ${label}`,
 		);
-		navToggle.title =
-			navVisible ? "Hide Navigator" : "Show Navigator";
-		onNavVisibilityChanged(navVisible);
-		updateTogglePositions();
+		toggle.title = visible ? `Hide ${label}` : `Show ${label}`;
+		onVisibilityChanged(visible);
+		updateTogglePosition();
 	}
 
-	function setupResize(onResize) {
+	function setupResize(onResize = () => {}) {
 		const resizeOverlay =
 			document.getElementById("resize-overlay");
 
-		navResizeHandle.addEventListener("mousedown", (e) => {
+		resizeHandle.addEventListener("mousedown", (e) => {
 			e.preventDefault();
 			const startX = e.clientX;
 			const startWidth =
-				panelNav.getBoundingClientRect().width;
-			const startCounterWidth =
-				panelViewer.getBoundingClientRect().width;
+				panel.getBoundingClientRect().width;
 			let prevClamped = startWidth;
 
-			navResizeHandle.classList.add("active");
+			resizeHandle.classList.add("active");
 			document.body.style.cursor = "col-resize";
 			document.body.style.userSelect = "none";
-			resizeOverlay.style.display = "block";
+			if (resizeOverlay) {
+				resizeOverlay.style.display = "block";
+			}
 
 			for (const h of getAllWebviews()) {
 				h.webview.style.pointerEvents = "none";
 			}
 
 			function onMouseMove(e) {
-				const constraints = getPanelConstraints("nav");
-				const delta = e.clientX - startX;
+				const constraints = getPanelConstraints(side);
+				const delta = (e.clientX - startX) * direction;
 				const unclamped = startWidth + delta;
 				const clamped = Math.max(
 					constraints.min,
@@ -115,13 +128,12 @@ export function createPanelManager({
 				);
 				const counterDelta = prevClamped - clamped;
 				prevClamped = clamped;
-				panelNav.style.flex = `0 0 ${clamped}px`;
-				panelViewer.style.flex = "1 1 0";
+				panel.style.flex = `0 0 ${clamped}px`;
 				onResize(counterDelta);
 			}
 
 			function onMouseUp() {
-				navResizeHandle.classList.remove("active");
+				resizeHandle.classList.remove("active");
 				document.removeEventListener(
 					"mousemove", onMouseMove,
 				);
@@ -130,15 +142,17 @@ export function createPanelManager({
 				);
 				document.body.style.cursor = "";
 				document.body.style.userSelect = "";
-				resizeOverlay.style.display = "";
+				if (resizeOverlay) {
+					resizeOverlay.style.display = "";
+				}
 
 				for (const h of getAllWebviews()) {
 					h.webview.style.pointerEvents = "";
 				}
 
-				savePanelPref(
-					"panel-width-nav",
-					panelNav.getBoundingClientRect().width,
+				savePref(
+					`panel-width-${side}`,
+					panel.getBoundingClientRect().width,
 				);
 			}
 
@@ -147,34 +161,34 @@ export function createPanelManager({
 		});
 	}
 
-	function initPrefs(prefNavWidth, prefNavVisible) {
-		if (prefNavWidth != null) {
-			_prefCache["panel-width-nav"] = prefNavWidth;
+	function initPrefs(prefWidth, prefVisible) {
+		if (prefWidth != null) {
+			prefCache[`panel-width-${side}`] = prefWidth;
 		}
-		if (prefNavVisible != null) {
-			_prefCache["panel-visible-nav"] = prefNavVisible;
+		if (prefVisible != null) {
+			prefCache[`panel-visible-${side}`] = prefVisible;
 		}
-		navVisible = loadPanelVisible("nav", true);
+		const storedVisible = prefCache[`panel-visible-${side}`];
+		visible = storedVisible == null ? true : !!storedVisible;
 	}
 
 	return {
-		applyNavVisibility,
-		isNavVisible() { return navVisible; },
-		toggleNav() {
-			navVisible = !navVisible;
-			savePanelVisible("nav", navVisible);
-			applyNavVisibility();
+		applyVisibility,
+		isVisible() { return visible; },
+		toggle() {
+			visible = !visible;
+			savePref(`panel-visible-${side}`, visible);
+			applyVisibility();
 		},
-		setNavVisible(visible) {
-			navVisible = visible;
-			savePanelVisible("nav", navVisible);
-			applyNavVisibility();
+		setVisible(v) {
+			visible = v;
+			savePref(`panel-visible-${side}`, visible);
+			applyVisibility();
 		},
-		updateTogglePositions,
+		updateTogglePosition,
 		setupResize,
-		savePanelPref,
-		loadPanelPref,
-		loadPanelVisible,
+		savePref,
+		loadPref,
 		initPrefs,
 	};
 }

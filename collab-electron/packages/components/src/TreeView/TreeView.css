@@ -283,11 +283,6 @@
 	outline-offset: -1px;
 }
 
-.collection-folder-row.sticky {
-	position: sticky;
-	background: var(--background);
-}
-
 .collection-tree-caret {
 	display: flex;
 	align-items: center;

@@ -12,9 +12,13 @@ interface AllViewConfigs {
   terminalTile: ViewConfig;
   graphTile: ViewConfig;
   settings: ViewConfig;
+  terminalList: ViewConfig;
 }
 
-const ALLOWED_PANELS = new Set(["nav", "viewer", "terminal", "terminalTile", "graphTile", "settings"]);
+const ALLOWED_PANELS = new Set([
+  "nav", "viewer", "terminal", "terminalTile",
+  "graphTile", "settings", "terminal-list",
+]);
 
 // Buffer loading-done signal so it isn't lost if it arrives before
 // React mounts and registers the onLoadingDone listener (race between
@@ -213,4 +217,35 @@ contextBridge.exposeInMainWorld("shellApi", {
     ipcRenderer.invoke("integrations:has-offered-plugin"),
   markPluginOffered: () =>
     ipcRenderer.invoke("integrations:mark-plugin-offered"),
+
+  ptyKillSession: (sessionId: string): Promise<void> =>
+    ipcRenderer.invoke("pty:kill", { sessionId }),
+
+  onPtyStatusChanged: (
+    cb: (payload: { sessionId: string; foreground: string }) => void,
+  ) => {
+    const handler = (
+      _event: unknown,
+      payload: { sessionId: string; foreground: string },
+    ) => cb(payload);
+    ipcRenderer.on("pty:status-changed", handler);
+    return () =>
+      ipcRenderer.removeListener("pty:status-changed", handler);
+  },
+
+  onPtyExit: (
+    cb: (payload: { sessionId: string; exitCode: number }) => void,
+  ) => {
+    const handler = (
+      _event: unknown,
+      payload: { sessionId: string; exitCode: number },
+    ) => cb(payload);
+    ipcRenderer.on("pty:exit", handler);
+    return () =>
+      ipcRenderer.removeListener("pty:exit", handler);
+  },
+
+  ptyDiscover: () => ipcRenderer.invoke("pty:discover"),
+  ptyCleanDetached: (activeSessionIds: string[]) =>
+    ipcRenderer.invoke("pty:clean-detached", activeSessionIds),
 });

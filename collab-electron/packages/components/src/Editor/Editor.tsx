@@ -193,14 +193,21 @@ const WIKI_IMAGE_SAVE_RE =
 function preProcessImageWikilinks(markdown: string): string {
 	return markdown.replace(
 		WIKI_IMAGE_LOAD_RE,
-		(_match, filename: string) => `![](wikiimage:${filename})`,
+		(_match, filename: string) =>
+			`![](wikiimage:${encodeURIComponent(filename)})`,
 	);
 }
 
 function postProcessMarkdown(markdown: string): string {
 	return markdown.replace(
 		WIKI_IMAGE_SAVE_RE,
-		(_match, _alt: string, filename: string) => `![[${filename}]]`,
+		(_match, _alt: string, filename: string) => {
+			try {
+				return `![[${decodeURIComponent(filename)}]]`;
+			} catch {
+				return `![[${filename}]]`;
+			}
+		},
 	);
 }
 

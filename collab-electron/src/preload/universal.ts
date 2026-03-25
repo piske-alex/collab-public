@@ -75,6 +75,15 @@ ipcRenderer.on("replay:data", (_event, msg) => {
   for (const cb of replayDataListeners) cb(msg);
 });
 
+// -- Canvas opacity ---------------------------------------------------
+// The shell forwards canvas-opacity so webview backgrounds can match.
+ipcRenderer.on("canvas-opacity", (_event: unknown, value: number) => {
+  document.documentElement.style.setProperty(
+    "--canvas-opacity",
+    String(value),
+  );
+});
+
 // -- Workspace-changed buffer ----------------------------------------
 // Buffer workspace-changed messages that arrive before React registers
 // its onWorkspaceChanged listener (race between webview IPC delivery
@@ -228,6 +237,8 @@ contextBridge.exposeInMainWorld("api", {
     ),
   ptyDiscover: () =>
     ipcRenderer.invoke("pty:discover"),
+  ptyCleanDetached: (activeSessionIds: string[]) =>
+    ipcRenderer.invoke("pty:clean-detached", activeSessionIds),
   onPtyData: (cb: PtyDataCallback) => {
     dataListeners.add(cb);
   },
@@ -468,6 +479,35 @@ contextBridge.exposeInMainWorld("api", {
   // Canvas pinch forwarding
   forwardPinch: (deltaY: number) =>
     ipcRenderer.send("canvas:forward-pinch", deltaY),
+
+  // Generic sendToHost for webview → shell renderer communication
+  sendToHost: (channel: string, ...args: unknown[]) =>
+    ipcRenderer.sendToHost(channel, ...args),
+
+  // Terminal list channels (shell renderer → webview via webview.send)
+  onTerminalListMessage: (
+    cb: (channel: string, ...args: unknown[]) => void,
+  ) => {
+    const channels = [
+      "terminal-list:init",
+      "terminal-list:add",
+      "terminal-list:remove",
+      "terminal-list:focus",
+      "pty-status-changed",
+      "pty-exit",
+    ];
+    const handlers = channels.map((ch) => {
+      const handler = (_event: unknown, ...args: unknown[]) =>
+        cb(ch, ...args);
+      ipcRenderer.on(ch, handler);
+      return { ch, handler };
+    });
+    return () => {
+      for (const { ch, handler } of handlers) {
+        ipcRenderer.removeListener(ch, handler);
+      }
+    };
+  },
 });
 
 // Forward ctrl+wheel (trackpad pinch) from tile webviews to the canvas

@@ -24,10 +24,14 @@ changes, split them up.
 ## Contributor License Agreement
 
 All contributors must agree to our [CLA](CLA.md) before we can merge a pull
-request. When you open your first PR, our CLA bot will check whether you've
-signed. If you haven't, it will leave a comment with instructions.
+request. When you open your first PR, our CLA Assistant will check whether
+you've signed. If you haven't, it will leave a comment asking you to sign by
+posting the following in the PR:
 
-By submitting a pull request, you agree to the terms of the CLA.
+> I have read the Contributor License Agreement (CLA) and hereby sign the CLA.
+
+Your signature is recorded in `.github/cla-signatures.json` and committed to the
+repo, so there is a permanent, auditable record.
 
 ## License
 

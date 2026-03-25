@@ -26,7 +26,12 @@ function isWikiImageUrl(url: string): boolean {
 }
 
 function extractWikiImageRef(url: string): string {
-  return url.slice("wikiimage:".length);
+  const raw = url.slice("wikiimage:".length);
+  try {
+    return decodeURIComponent(raw);
+  } catch {
+    return raw;
+  }
 }
 
 type ResolvedState =

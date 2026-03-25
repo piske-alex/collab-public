@@ -6,6 +6,7 @@ import { type IDisposable } from "node-pty";
 import {
   getTmuxBin,
   getTerminfoDir,
+  getSocketName,
   tmuxExec,
   tmuxSessionName,
   writeSessionMeta,
@@ -74,7 +75,7 @@ function attachClient(
 
   const ptyProcess = pty.spawn(
     tmuxBin,
-    ["-L", "collab", "-u", "attach-session", "-t", name],
+    ["-L", getSocketName(), "-u", "attach-session", "-t", name],
     { name: "xterm-256color", cols, rows, env: utf8Env() },
   );
 
@@ -87,6 +88,7 @@ function attachClient(
         "pty:data",
         { sessionId, data },
       );
+      scheduleForegroundCheck(sessionId);
     }),
   );
 
@@ -105,6 +107,8 @@ function attachClient(
           "pty:exit",
           { sessionId, exitCode: 0 },
         );
+        // Also notify the shell BrowserWindow for terminal list cleanup
+        sendToMainWindow("pty:exit", { sessionId, exitCode: 0 });
       }
       sessions.delete(sessionId);
     }),
@@ -331,6 +335,7 @@ export function resizeSession(
 }
 
 export function killSession(sessionId: string): void {
+  clearForegroundCache(sessionId);
   const session = sessions.get(sessionId);
   if (session) {
     for (const d of session.disposables) d.dispose();
@@ -467,6 +472,99 @@ export function discoverSessions(): DiscoveredSession[] {
   }
 
   return result;
+}
+
+export function getForegroundProcess(
+  sessionId: string,
+): string | null {
+  const name = tmuxSessionName(sessionId);
+  try {
+    return tmuxExec(
+      "display-message", "-t", name,
+      "-p", "#{pane_current_command}",
+    );
+  } catch {
+    return null;
+  }
+}
+
+const lastForeground = new Map<string, string>();
+const statusTimers = new Map<string, ReturnType<typeof setTimeout>>();
+const STATUS_DEBOUNCE_MS = 500;
+
+function sendToMainWindow(channel: string, payload: unknown): void {
+  const { BrowserWindow } = require("electron");
+  const wins = BrowserWindow.getAllWindows();
+  for (const win of wins) {
+    if (!win.isDestroyed()) {
+      win.webContents.send(channel, payload);
+    }
+  }
+}
+
+export function scheduleForegroundCheck(sessionId: string): void {
+  const existing = statusTimers.get(sessionId);
+  if (existing) clearTimeout(existing);
+
+  statusTimers.set(
+    sessionId,
+    setTimeout(() => {
+      statusTimers.delete(sessionId);
+      const fg = getForegroundProcess(sessionId);
+      if (fg == null) return;
+
+      const prev = lastForeground.get(sessionId);
+      if (fg === prev) return;
+
+      lastForeground.set(sessionId, fg);
+      sendToMainWindow("pty:status-changed", {
+        sessionId,
+        foreground: fg,
+      });
+    }, STATUS_DEBOUNCE_MS),
+  );
+}
+
+export function clearForegroundCache(sessionId: string): void {
+  lastForeground.delete(sessionId);
+  const timer = statusTimers.get(sessionId);
+  if (timer) {
+    clearTimeout(timer);
+    statusTimers.delete(sessionId);
+  }
+}
+
+function getAttachedSessionNames(): Set<string> {
+  try {
+    const raw = tmuxExec(
+      "list-sessions", "-F",
+      "#{session_name}:#{session_attached}",
+    );
+    const attached = new Set<string>();
+    for (const line of raw.split("\n").filter(Boolean)) {
+      const sep = line.lastIndexOf(":");
+      const name = line.slice(0, sep);
+      const count = parseInt(line.slice(sep + 1), 10);
+      if (count > 0) attached.add(name);
+    }
+    return attached;
+  } catch {
+    return new Set();
+  }
+}
+
+export function cleanDetachedSessions(
+  activeSessionIds: string[],
+): void {
+  const active = new Set(activeSessionIds);
+  const attached = getAttachedSessionNames();
+  const discovered = discoverSessions();
+
+  for (const { sessionId } of discovered) {
+    if (active.has(sessionId)) continue;
+    if (attached.has(tmuxSessionName(sessionId))) continue;
+    killSession(sessionId);
+  }
 }
 
 export function verifyTmuxAvailable(): void {

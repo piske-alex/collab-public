@@ -117,14 +117,10 @@ const FolderRow = React.memo(function FolderRow({
 	const style: React.CSSProperties = {
 		paddingLeft: `${item.level * 16 + 8}px`,
 	};
-	if (item.isExpanded) {
-		style.top = `${item.level * rowHeight}px`;
-		style.zIndex = 10 - item.level;
-	}
 
 	return (
 		<div
-			className={`collection-tree-row collection-folder-row${item.isExpanded ? ' sticky' : ''}${isDropTarget ? ' drop-target' : ''}`}
+			className={`collection-tree-row collection-folder-row${isDropTarget ? ' drop-target' : ''}`}
 			style={style}
 			draggable
 			onDragStart={(e) =>

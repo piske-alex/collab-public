@@ -3,6 +3,7 @@
 :root {
 	--font-mono: 'IBM Plex Mono', ui-monospace, monospace;
 	--bg: rgb(248, 248, 248);
+	--bg-rgb: 248, 248, 248;
 	--canvas-bg: rgb(230, 230, 230);
 	--canvas-bg-hi: rgb(244, 244, 244);
 	--canvas-bg-rgb: 230, 230, 230;
@@ -24,6 +25,7 @@
 
 .dark {
 	--bg: rgb(18, 18, 18);
+	--bg-rgb: 18, 18, 18;
 	--canvas-bg: rgb(24, 24, 24);
 	--canvas-bg-hi: rgb(38, 38, 38);
 	--canvas-bg-rgb: 24, 24, 24;
@@ -116,7 +118,7 @@ body {
 	max-width: calc(var(--panel-nav-max) * 1px);
 	border-right: 1px solid var(--border);
 	overflow: hidden;
-	background: var(--bg);
+	background: rgba(var(--bg-rgb), calc(1 - (1 - var(--canvas-opacity)) / 2));
 }
 
 #panel-nav::after {
@@ -172,6 +174,19 @@ body {
 	z-index: 110;
 }
 
+#panel-terminal {
+	display: flex;
+	flex-direction: column;
+	overflow: hidden;
+	min-height: 0;
+	border-left: 1px solid var(--border);
+	background: rgba(var(--bg-rgb), calc(1 - (1 - var(--canvas-opacity)) / 2));
+}
+
+#panel-terminal webview {
+	flex: 1;
+}
+
 /* ── Nav toolbar ── */
 
 #nav-toolbar {
@@ -182,10 +197,39 @@ body {
 	padding-top: var(--toolbar-height);
 }
 
+#settings-btn {
+	position: absolute;
+	top: 7px;
+	right: 10px;
+	z-index: 101;
+	-webkit-app-region: no-drag;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 24px;
+	height: 24px;
+	padding: 0;
+	border: none;
+	border-radius: 6px;
+	background: transparent;
+	color: var(--muted);
+	cursor: pointer;
+	transition: color 0.15s ease, background 0.15s ease;
+}
+
+#settings-btn:hover {
+	color: var(--fg);
+	background: color-mix(in srgb, var(--fg) 8%, transparent);
+}
+
+#settings-btn:active {
+	transform: scale(0.94);
+}
+
 #update-pill {
 	position: absolute;
 	top: 8px;
-	right: 10px;
+	right: 42px;
 	z-index: 101;
 	-webkit-app-region: no-drag;
 	padding: 2px 9px;
@@ -724,8 +768,13 @@ body {
 }
 
 .canvas-tile.edge-indicator-highlight {
-	border-color: color-mix(in srgb, var(--fg) 60%, transparent);
-	transition: border-color 0.6s ease;
+	animation: seek-highlight-flash 1.2s ease;
+}
+
+@keyframes seek-highlight-flash {
+	0% { border-color: rgba(128, 128, 128, 0.2); }
+	25% { border-color: #4a9eff; }
+	100% { border-color: rgba(128, 128, 128, 0.2); }
 }
 
 /* ── Canvas tiles ── */

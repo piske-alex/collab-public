@@ -2,6 +2,7 @@
 
 :root {
 	--background: rgb(248, 248, 248);
+	--background-rgb: 248, 248, 248;
 	--foreground: rgb(32, 32, 32);
 	--border: rgb(206, 206, 206);
 	--muted-foreground: rgb(113, 113, 123);
@@ -28,6 +29,7 @@
 
 .dark {
 	--background: rgb(18, 18, 18);
+	--background-rgb: 18, 18, 18;
 	--foreground: rgb(220, 220, 220);
 	--border: rgb(255, 255, 255, 0.2);
 	--muted-foreground: rgb(132, 132, 132);

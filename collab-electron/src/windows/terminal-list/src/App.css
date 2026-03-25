@@ -1,0 +1,121 @@
+:root {
+  --idle-color: #34d399;
+  --busy-color: #fbbf24;
+  --focus-bg: rgba(255, 255, 255, 0.06);
+  --border-focus: rgb(250, 250, 250);
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    --focus-bg: rgba(0, 0, 0, 0.04);
+    --border-focus: rgb(24, 24, 27);
+  }
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-size: 12px;
+  color: var(--text, #ccc);
+  background: transparent;
+  overflow-y: auto;
+  overflow-x: hidden;
+  user-select: none;
+}
+
+.terminal-list {
+  display: flex;
+  flex-direction: column;
+  padding: 8px 0;
+}
+
+.terminal-list-header {
+  padding: 4px 12px 8px;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted, #888);
+}
+
+.terminal-entry {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  cursor: pointer;
+  border-left: 3px solid transparent;
+  transition: background 80ms ease;
+}
+
+.terminal-entry:hover {
+  background: var(--focus-bg);
+}
+
+.terminal-entry.focused {
+  background: var(--focus-bg);
+}
+
+.terminal-entry.focused.idle {
+  border-left-color: var(--border-focus);
+}
+
+.terminal-entry.focused.busy {
+  border-left-color: var(--border-focus);
+}
+
+.status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.status-dot.idle {
+  background: var(--idle-color);
+}
+
+.status-dot.busy {
+  background: var(--busy-color);
+}
+
+.entry-info {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+}
+
+.entry-top {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.shell-name {
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.status-label {
+  font-size: 11px;
+  color: var(--muted, #888);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.entry-cwd {
+  font-size: 10px;
+  color: var(--muted, #666);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  direction: rtl;
+  text-align: left;
+}

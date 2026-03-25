@@ -173,26 +173,19 @@ interface ShortcutEntry {
 
 const TOGGLE_SHORTCUTS: Record<string, ShortcutEntry> = {
   Backslash: { modifier: cmdOrCtrl, action: "toggle-nav" },
+  Backquote: { modifier: cmdOrCtrl, action: "toggle-terminal-list" },
   Comma: { modifier: cmdOrCtrl, action: "toggle-settings" },
-  KeyW: { modifier: shiftCmdOrCtrl, action: "close-tab" },
   KeyO: { modifier: shiftCmdOrCtrl, action: "add-workspace" },
   KeyK: { modifier: cmdOrCtrl, action: "focus-search" },
 };
 
 const TOGGLE_SHORTCUT_KEYS: Record<string, ShortcutEntry> = {
   "\\": TOGGLE_SHORTCUTS.Backslash!,
+  "`": TOGGLE_SHORTCUTS.Backquote!,
   ",": TOGGLE_SHORTCUTS.Comma!,
-  w: TOGGLE_SHORTCUTS.KeyW!,
   o: TOGGLE_SHORTCUTS.KeyO!,
   k: TOGGLE_SHORTCUTS.KeyK!,
 };
-
-const TAB_SHORTCUTS: Record<string, string> = {};
-const TAB_SHORTCUT_KEYS: Record<string, string> = {};
-for (let i = 1; i <= 9; i++) {
-  TAB_SHORTCUTS[`Digit${i}`] = `switch-tab-${i}`;
-  TAB_SHORTCUT_KEYS[String(i)] = `switch-tab-${i}`;
-}
 
 function normalizeShortcutKey(key: string | undefined): string | null {
   if (!key) return null;
@@ -210,21 +203,7 @@ function resolveToggleShortcut(
     : undefined;
 }
 
-function resolveTabShortcut(
-  input: Electron.Input,
-): string | undefined {
-  const shortcut = TAB_SHORTCUTS[input.code];
-  if (shortcut) return shortcut;
-  const normalizedKey = normalizeShortcutKey(input.key);
-  return normalizedKey
-    ? TAB_SHORTCUT_KEYS[normalizedKey]
-    : undefined;
-}
-
-function attachShortcutListener(
-  target: WebContents,
-  includeTabShortcuts: boolean,
-): void {
+function attachShortcutListener(target: WebContents): void {
   target.on("before-input-event", (event, input) => {
     if (input.type !== "keyDown") return;
 
@@ -232,25 +211,8 @@ function attachShortcutListener(
     if (toggle && toggle.modifier(input)) {
       event.preventDefault();
       if (!input.isAutoRepeat) sendShortcut(toggle.action);
-      return;
-    }
-
-    if (includeTabShortcuts) {
-      const tabAction = resolveTabShortcut(input);
-      if (tabAction && cmdOrCtrl(input)) {
-        event.preventDefault();
-        if (!input.isAutoRepeat) sendShortcut(tabAction);
-      }
     }
   });
-}
-
-function isTerminalWebview(wc: WebContents): boolean {
-  try {
-    return wc.getURL().includes("/terminal/");
-  } catch {
-    return false;
-  }
 }
 
 function isBrowserTileWebview(wc: WebContents): boolean {
@@ -295,11 +257,11 @@ function attachBrowserShortcuts(
 }
 
 function registerToggleShortcuts(win: BrowserWindow): void {
-  attachShortcutListener(win.webContents, true);
+  attachShortcutListener(win.webContents);
 
   win.webContents.on("did-attach-webview", (_event, wc) => {
     wc.once("did-finish-load", () => {
-      attachShortcutListener(wc, !isTerminalWebview(wc));
+      attachShortcutListener(wc);
       if (isBrowserTileWebview(wc)) {
         attachBrowserShortcuts(wc, win);
       }
@@ -396,6 +358,12 @@ function buildAppMenu(): void {
           accelerator: "CommandOrControl+\\",
           registerAccelerator: false,
           click: () => sendShortcut("toggle-nav"),
+        },
+        {
+          label: "Toggle Terminal List",
+          accelerator: "CommandOrControl+`",
+          registerAccelerator: false,
+          click: () => sendShortcut("toggle-terminal-list"),
         },
         { type: "separator" },
         {
@@ -540,6 +508,7 @@ ipcMain.handle("shell:get-view-config", () => {
     terminalTile: { src: getRendererURL("terminal-tile"), preload },
     graphTile: { src: getRendererURL("graph-tile"), preload },
     settings: { src: getRendererURL("settings"), preload },
+    terminalList: { src: getRendererURL("terminal-list"), preload },
   };
 });
 
@@ -621,6 +590,17 @@ ipcMain.handle(
 ipcMain.handle(
   "pty:discover",
   () => pty.discoverSessions(),
+);
+
+ipcMain.handle(
+  "pty:clean-detached",
+  (_event, activeSessionIds: string[]) =>
+    pty.cleanDetachedSessions(activeSessionIds),
+);
+
+ipcMain.handle(
+  "pty:foreground-process",
+  (_event, sessionId: string) => pty.getForegroundProcess(sessionId),
 );
 
 let settingsOpen = false;

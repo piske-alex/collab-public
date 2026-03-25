@@ -13,7 +13,13 @@ export interface SessionMeta {
 export const SESSION_DIR = path.join(
   COLLAB_DIR, "terminal-sessions",
 );
-const SOCKET_NAME = "collab";
+function getSocketName(): string {
+  const app = getApp();
+  if (app && !app.isPackaged) return "collab-dev";
+  return "collab";
+}
+
+export { getSocketName };
 
 // Electron app module — unavailable in unit tests.
 // Lazy-loaded to avoid crashing bun test.
@@ -55,7 +61,7 @@ export function getTerminfoDir(): string | undefined {
 }
 
 function baseArgs(): string[] {
-  return ["-L", SOCKET_NAME, "-u", "-f", getTmuxConf()];
+  return ["-L", getSocketName(), "-u", "-f", getTmuxConf()];
 }
 
 function tmuxEnv(): Record<string, string> | undefined {
