@@ -43,10 +43,10 @@
 			"package.json",
 			"NOTICE"
 		],
-		"afterSign": "scripts/notarize.cjs",
-		"afterAllArtifactBuild": "scripts/fix-artifacts.cjs",
 		"extraResources": [],
 		"mac": {
+			"afterSign": "scripts/notarize.cjs",
+			"afterAllArtifactBuild": "scripts/fix-artifacts.cjs",
 			"category": "public.app-category.productivity",
 			"hardenedRuntime": true,
 			"gatekeeperAssess": false,
