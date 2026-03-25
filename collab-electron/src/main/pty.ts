@@ -477,6 +477,24 @@ export function discoverSessions(): DiscoveredSession[] {
 export function getForegroundProcess(
   sessionId: string,
 ): string | null {
+  if (isWindows) {
+    // On Windows, node-pty's ConPTY doesn't reliably expose foreground
+    // process info. Return the process title from the pty if available,
+    // otherwise fall back to the shell basename.
+    const session = sessions.get(sessionId);
+    if (!session?.pty) return null;
+    try {
+      const proc = (session.pty as any).process;
+      if (proc) {
+        return proc.split(/[/\\]/).pop()?.replace(/\.exe$/i, "") || null;
+      }
+    } catch {
+      // ignore
+    }
+    return session.shell
+      ? session.shell.split(/[/\\]/).pop()?.replace(/\.exe$/i, "") || null
+      : null;
+  }
   const name = tmuxSessionName(sessionId);
   try {
     return tmuxExec(

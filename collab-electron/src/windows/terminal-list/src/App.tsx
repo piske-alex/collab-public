@@ -10,7 +10,8 @@ interface TerminalEntry {
 }
 
 function shellBasename(shell: string): string {
-  return shell.split("/").pop() || shell;
+  // Handle both Unix (/) and Windows (\) path separators
+  return shell.split(/[/\\]/).pop()?.replace(/\.exe$/i, "") || shell;
 }
 
 function isIdle(entry: TerminalEntry): boolean {

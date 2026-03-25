@@ -443,10 +443,11 @@ function createWindow(): void {
       : {
           titleBarStyle: "hidden",
           titleBarOverlay: {
-            color: "#00000000",
+            color: "#121212",
             symbolColor: "#999999",
             height: 36,
           },
+          backgroundColor: "#121212",
         }),
     webPreferences: {
       preload: getPreloadPath("shell"),

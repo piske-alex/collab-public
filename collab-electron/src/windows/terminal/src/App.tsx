@@ -34,7 +34,7 @@ function App() {
       config?.workspaces?.[config?.active_workspace] || undefined;
     const { cols, rows } = estimateTermSize();
     const result = await window.api.ptyCreate(cwd, cols, rows);
-    const shellName = result.shell.split("/").pop() || "shell";
+    const shellName = result.shell.split(/[/\\]/).pop()?.replace(/\.exe$/i, "") || "shell";
     const session: Session = {
       id: result.sessionId,
       title: shellName,
