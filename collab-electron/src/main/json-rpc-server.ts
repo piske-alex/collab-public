@@ -8,8 +8,14 @@ import {
 import { join } from "node:path";
 import { homedir } from "node:os";
 import { COLLAB_DIR } from "./paths";
+import { isWindows } from "./platform";
 
-const SOCKET_PATH = join(COLLAB_DIR, "ipc.sock");
+// On Windows, use a named pipe; on Unix, use a domain socket.
+const PIPE_NAME = "collab-ipc";
+const SOCKET_PATH = isWindows
+  ? `\\\\.\\pipe\\${PIPE_NAME}`
+  : join(COLLAB_DIR, "ipc.sock");
+
 // Write the breadcrumb to the base directory (~/.collaborator/)
 // so the hook script can discover the socket regardless of
 // whether the app is running in dev or prod mode.
@@ -143,6 +149,9 @@ function handleConnection(socket: Socket): void {
 }
 
 function cleanupStaleSocket(): void {
+  // Named pipes on Windows are managed by the OS — no file to unlink.
+  if (isWindows) return;
+
   if (existsSync(SOCKET_PATH)) {
     try {
       unlinkSync(SOCKET_PATH);
@@ -183,6 +192,7 @@ export function startJsonRpcServer(): Promise<void> {
     );
 
     server.listen(SOCKET_PATH, () => {
+      mkdirSync(BASE_DIR, { recursive: true });
       writeFileSync(SOCKET_PATH_FILE, SOCKET_PATH, "utf-8");
       console.log(
         `[json-rpc] Listening on ${SOCKET_PATH}`,

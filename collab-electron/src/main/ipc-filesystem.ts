@@ -11,6 +11,7 @@ import {
   fsMkdir,
   fsMove,
 } from "./files";
+import { isInsideDir } from "./platform";
 import {
   getImageThumbnail,
   getImageFull,
@@ -129,7 +130,7 @@ export function registerFilesystemHandlers(
         throw new Error("Title cannot be empty");
       }
       const dotIndex = oldPath.lastIndexOf(".");
-      const slashIndex = oldPath.lastIndexOf("/");
+      const slashIndex = Math.max(oldPath.lastIndexOf("/"), oldPath.lastIndexOf("\\"));
       const ext =
         dotIndex > slashIndex ? oldPath.slice(dotIndex) : "";
       bumpRenameRefCount(oldPath);
@@ -246,11 +247,7 @@ export function registerFilesystemHandlers(
       folderPath: string,
     ): Promise<FolderTableData> => {
       const workspace = ctx.getActiveWorkspacePath();
-      if (
-        !workspace ||
-        (!folderPath.startsWith(workspace + "/") &&
-          folderPath !== workspace)
-      ) {
+      if (!workspace || !isInsideDir(folderPath, workspace)) {
         throw new Error("Folder is outside workspace");
       }
       const entries = await readdir(folderPath, {
@@ -337,10 +334,7 @@ export function registerFilesystemHandlers(
       buffer: ArrayBuffer,
     ) => {
       const ws = ctx.getActiveWorkspacePath();
-      if (
-        !ws ||
-        (noteDir !== ws && !noteDir.startsWith(ws + "/"))
-      ) {
+      if (!ws || !isInsideDir(noteDir, ws)) {
         throw new Error("Target directory is outside workspace");
       }
       return saveDroppedImage(

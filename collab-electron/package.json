@@ -9,7 +9,7 @@
 	],
 	"main": "out/main/index.js",
 	"scripts": {
-		"dev": "unset ELECTRON_EXEC_PATH && electron-vite dev",
+		"dev": "electron-vite dev",
 		"build": "electron-vite build",
 		"preview": "electron-vite preview",
 		"package": "./scripts/package.sh",
@@ -45,28 +45,7 @@
 		],
 		"afterSign": "scripts/notarize.cjs",
 		"afterAllArtifactBuild": "scripts/fix-artifacts.cjs",
-		"extraResources": [
-			{
-				"from": "vendor/tmux/tmux",
-				"to": "tmux"
-			},
-			{
-				"from": "vendor/tmux/lib",
-				"to": "lib"
-			},
-			{
-				"from": "resources/tmux.conf",
-				"to": "tmux.conf"
-			},
-			{
-				"from": "resources/terminfo",
-				"to": "terminfo"
-			},
-			{
-				"from": "scripts/collab-cli.sh",
-				"to": "collab-cli.sh"
-			}
-		],
+		"extraResources": [],
 		"mac": {
 			"category": "public.app-category.productivity",
 			"hardenedRuntime": true,
@@ -79,7 +58,82 @@
 					"target": "zip",
 					"arch": "arm64"
 				}
+			],
+			"extraResources": [
+				{
+					"from": "vendor/tmux/tmux",
+					"to": "tmux"
+				},
+				{
+					"from": "vendor/tmux/lib",
+					"to": "lib"
+				},
+				{
+					"from": "resources/tmux.conf",
+					"to": "tmux.conf"
+				},
+				{
+					"from": "resources/terminfo",
+					"to": "terminfo"
+				},
+				{
+					"from": "scripts/collab-cli.sh",
+					"to": "collab-cli.sh"
+				}
 			]
+		},
+		"win": {
+			"target": [
+				{
+					"target": "nsis",
+					"arch": ["x64"]
+				},
+				{
+					"target": "zip",
+					"arch": ["x64"]
+				}
+			],
+			"icon": "build/icon.ico",
+			"extraResources": [
+				{
+					"from": "scripts/collab-cli.cmd",
+					"to": "collab-cli.cmd"
+				}
+			]
+		},
+		"linux": {
+			"target": [
+				{
+					"target": "AppImage",
+					"arch": ["x64"]
+				},
+				{
+					"target": "deb",
+					"arch": ["x64"]
+				},
+				{
+					"target": "zip",
+					"arch": ["x64"]
+				}
+			],
+			"category": "Development",
+			"icon": "build/icon.png",
+			"extraResources": [
+				{
+					"from": "resources/terminfo",
+					"to": "terminfo"
+				},
+				{
+					"from": "scripts/collab-cli.sh",
+					"to": "collab-cli.sh"
+				}
+			]
+		},
+		"nsis": {
+			"oneClick": false,
+			"perMachine": false,
+			"allowToChangeInstallationDirectory": true,
+			"installerIcon": "build/icon.ico"
 		}
 	},
 	"dependencies": {

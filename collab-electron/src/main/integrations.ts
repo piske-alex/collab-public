@@ -9,6 +9,7 @@ import {
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { execSync } from "node:child_process";
+import { whichCommand } from "./platform";
 
 export type AgentId = "claude" | "codex" | "gemini";
 
@@ -40,7 +41,7 @@ function agentDetected(id: AgentId): boolean {
 
 function isOnPath(command: string): boolean {
   try {
-    execSync(`which ${command}`, { stdio: "ignore" });
+    execSync(`${whichCommand()} ${command}`, { stdio: "ignore" });
     return true;
   } catch {
     return false;

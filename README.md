@@ -6,17 +6,17 @@ Collaborator is a place to build with agents.
 
 Collaborator is an end-to-end environment for agentic development. Terminals, context files, and running code — all arranged on an infinite canvas in one place. No context switching, no tab hunting. Just your agents and your work, side by side.
 
-The app is early-stage and in active development. macOS only for now.
+The app is early-stage and in active development. This fork adds **Windows** and **Linux** support alongside the original macOS build.
 
 ## Install
 
-**[Download the latest release](https://github.com/collaborator-ai/collab-public/releases/latest)** (macOS, Apple Silicon)
+**[Download the latest release](https://github.com/piske-alex/collab-public/releases/latest)**
 
-Or install from the command line:
-
-```sh
-curl -fsSL https://raw.githubusercontent.com/collaborator-ai/collab-public/main/install.sh | bash
-```
+| Platform | Format | Architecture |
+| -------- | ------ | ------------ |
+| Windows  | NSIS installer, zip | x64 |
+| Linux    | AppImage, deb, zip | x64 |
+| macOS    | zip | Apple Silicon (arm64) |
 
 ## Stack
 
@@ -26,7 +26,7 @@ Collaborator is a native desktop app built with:
 - **React 19** — UI framework
 - **Tailwind CSS 4** — styling
 - **electron-vite** — build tooling with hot reload
-- **xterm.js** — terminal emulation, backed by tmux sessions for persistence
+- **xterm.js** — terminal emulation (tmux on macOS, ConPTY on Windows, direct PTY on Linux)
 - **Monaco Editor** — code editing with syntax highlighting
 - **BlockNote / TipTap** — rich text markdown editing
 - **D3** — force-directed graph visualization
@@ -39,7 +39,7 @@ All data is stored locally on disk.
 
 1. Open Collaborator
 
-2. Add a workspace — click the workspace dropdown in the navigator and choose "Add workspace", or press Cmd+Shift+O, then select a local folder
+2. Add a workspace — click the workspace dropdown in the navigator and choose "Add workspace", or press Cmd+Shift+O (macOS) / Ctrl+Shift+O (Windows/Linux), then select a local folder
 
 3. Double-click the canvas to create a terminal, and start an agent
 
@@ -51,7 +51,7 @@ All data is stored locally on disk.
 
 ### Application overview
 
-Collaborator is a single-window application for macOS (arm64). It operates primarily on local files with no accounts required. Anonymous, non-identifying usage analytics are collected via PostHog.
+Collaborator is a single-window application for Windows (x64), Linux (x64), and macOS (arm64). It operates primarily on local files with no accounts required. Anonymous, non-identifying usage analytics are collected via PostHog.
 
 The window is divided into two regions:
 
@@ -91,9 +91,9 @@ The file tree shows all files and folders in the active workspace. It supports:
 
 * **Move files** by dragging between folders
 
-* **Multi-select** with Shift+click and Cmd+click
+* **Multi-select** with Shift+click and Cmd/Ctrl+click
 
-* **Search** via Cmd+K
+* **Search** via Cmd+K / Ctrl+K
 
 Selecting a file in the tree opens it in the viewer. Dragging a file from the tree onto the canvas creates a tile.
 
@@ -106,9 +106,9 @@ The canvas is an infinite pan-and-zoom surface that fills the main area. It uses
 | Action     | Input                                             |
 | ---------- | ------------------------------------------------- |
 | Pan        | Scroll wheel, or Space+drag, or middle-click+drag |
-| Zoom in    | Cmd+= or Ctrl+scroll up                           |
-| Zoom out   | Cmd+- or Ctrl+scroll down                         |
-| Reset zoom | Cmd+0                                             |
+| Zoom in    | Cmd+= / Ctrl+= or Ctrl+scroll up                  |
+| Zoom out   | Cmd+- / Ctrl+- or Ctrl+scroll down                |
+| Reset zoom | Cmd+0 / Ctrl+0                                    |
 
 * **Zoom range**: 33% to 100%, with rubber-band effect when overshooting limits
 
@@ -128,7 +128,7 @@ Tiles are live views, not standalone containers.
 
 * **File tiles** (note, code, image) are bound to a file on disk by absolute path. If the file is renamed, the tile updates to track the new path. If the file is deleted, the tile is closed. If the file's content changes on disk, the tile reloads.
 
-* **Terminal tiles** are bound to a tmux session. Each terminal tile creates and manages its own session, which persists independently of the tile's lifecycle on the canvas.
+* **Terminal tiles** are bound to a terminal session. On macOS, terminals use tmux for persistence. On Windows and Linux, terminals use direct PTY sessions via node-pty.
 
 #### Tile management
 
@@ -230,14 +230,43 @@ Canvas state is saved 500ms after each change (debounced) and immediately when t
 }
 ```
 
-## Star History
+## Building from source
 
-<a href="https://www.star-history.com/?repos=collaborator-ai%2Fcollab-public&type=timeline&legend=top-left">
- <picture>
-   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/image?repos=collaborator-ai/collab-public&type=timeline&theme=dark&legend=top-left" />
-   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/image?repos=collaborator-ai/collab-public&type=timeline&legend=top-left" />
-   <img alt="Star History Chart" src="https://api.star-history.com/image?repos=collaborator-ai/collab-public&type=timeline&legend=top-left" />
- </picture>
-</a>
+### Prerequisites
 
-⠀
+| Platform | Requirements |
+| -------- | ------------ |
+| Windows  | Node.js 20+, Python 3, Visual Studio Build Tools (C++ workload) |
+| Linux    | Node.js 20+, Python 3, build-essential, libsecret-1-dev |
+| macOS    | Node.js 20+, Xcode Command Line Tools |
+
+### Development
+
+```sh
+cd collab-electron
+npm install
+npm run dev
+```
+
+### Package
+
+```sh
+# Windows (from Windows)
+npx electron-builder --win
+
+# Linux (from Linux)
+npx electron-builder --linux
+
+# macOS (from macOS)
+npx electron-builder --mac
+```
+
+## Upstream
+
+This is a fork of [collaborator-ai/collab-public](https://github.com/collaborator-ai/collab-public) with cross-platform support added. To sync upstream changes:
+
+```sh
+git remote add upstream https://github.com/collaborator-ai/collab-public.git
+git fetch upstream
+git merge upstream/main
+```

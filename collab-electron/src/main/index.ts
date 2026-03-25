@@ -43,10 +43,11 @@ import {
 } from "./analytics";
 import { stopImageWorker } from "./image-service";
 import { installCli } from "./cli-installer";
+import { isMac, isWindows } from "./platform";
 
 // macOS apps launched from Finder don't inherit the user's shell
 // LANG, so child processes (tmux, shells) default to ASCII.
-if (!process.env.LANG || !process.env.LANG.includes("UTF-8")) {
+if (!isWindows && (!process.env.LANG || !process.env.LANG.includes("UTF-8"))) {
   process.env.LANG = "en_US.UTF-8";
 }
 
@@ -317,7 +318,6 @@ function applyZoomToAll(level: number): void {
 }
 
 function buildAppMenu(): void {
-  const isMac = process.platform === "darwin";
 
   const template: Electron.MenuItemConstructorOptions[] = [
     ...(isMac
@@ -354,6 +354,19 @@ function buildAppMenu(): void {
           registerAccelerator: false,
           click: () => sendShortcut("add-workspace"),
         },
+        ...(!isMac
+          ? [
+              { type: "separator" as const },
+              {
+                label: "Settings\u2026",
+                accelerator: "CommandOrControl+,",
+                registerAccelerator: false,
+                click: () => sendShortcut("toggle-settings"),
+              } as Electron.MenuItemConstructorOptions,
+              { type: "separator" as const },
+              { role: "quit" as const },
+            ]
+          : []),
       ],
     },
     {
@@ -404,7 +417,7 @@ function buildAppMenu(): void {
         { role: "toggleDevTools" },
         {
           label: "Toggle Full Screen",
-          accelerator: "Ctrl+Cmd+F",
+          accelerator: isMac ? "Ctrl+Cmd+F" : "F11",
           click: (_, win) => win?.setFullScreen(!win.isFullScreen()),
         },
       ],
@@ -452,10 +465,21 @@ function createWindow(): void {
     height: state.height,
     minWidth: 400,
     minHeight: 400,
-    titleBarStyle: "hidden",
-    vibrancy: "under-window",
-    visualEffectState: "active",
-    trafficLightPosition: { x: 14, y: 12 },
+    ...(isMac
+      ? {
+          titleBarStyle: "hidden",
+          vibrancy: "under-window",
+          visualEffectState: "active",
+          trafficLightPosition: { x: 14, y: 12 },
+        }
+      : {
+          titleBarStyle: "hidden",
+          titleBarOverlay: {
+            color: "#00000000",
+            symbolColor: "#999999",
+            height: 36,
+          },
+        }),
     webPreferences: {
       preload: getPreloadPath("shell"),
       contextIsolation: true,
@@ -716,20 +740,26 @@ app.whenReady().then(async () => {
   );
 
   protocol.handle("collab-file", (request) => {
-    const filePath = decodeURIComponent(
+    let filePath = decodeURIComponent(
       new URL(request.url).pathname,
     );
-    return net.fetch(`file://${filePath}`);
+    // On Windows, pathname starts with /C:/ — strip leading slash for valid path.
+    if (isWindows && filePath.match(/^\/[a-zA-Z]:\//)) {
+      filePath = filePath.slice(1);
+    }
+    return net.fetch(pathToFileURL(filePath).href);
   });
 
   shuttingDown = false;
 
-  try {
-    pty.verifyTmuxAvailable();
-  } catch (err) {
-    console.error(
-      "tmux binary not found or not executable:", err,
-    );
+  if (!isWindows) {
+    try {
+      pty.verifyTmuxAvailable();
+    } catch (err) {
+      console.error(
+        "tmux binary not found or not executable:", err,
+      );
+    }
   }
 
   config = loadConfig();

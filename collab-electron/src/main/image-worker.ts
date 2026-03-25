@@ -142,7 +142,7 @@ async function full(
 
   if (NATIVE_FORMATS.has(format)) {
     return {
-      url: `collab-file://${encodeURIComponent(path).replace(/%2F/g, "/")}`,
+      url: `collab-file://${encodeURIComponent(path.replace(/\\/g, "/")).replace(/%2F/g, "/")}`,
       width,
       height,
     };

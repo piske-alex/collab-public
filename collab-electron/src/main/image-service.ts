@@ -2,6 +2,7 @@ import { Worker } from "node:worker_threads";
 import { access, readdir, writeFile } from "node:fs/promises";
 import { basename, dirname, join } from "node:path";
 import { IMAGE_EXTENSIONS, isImageFile } from "./file-filter";
+import { isInsideDir } from "./platform";
 
 const NATIVE_EXTENSIONS = new Set([
   ".png", ".jpg", ".jpeg", ".gif", ".webp",
@@ -74,7 +75,7 @@ function request(
 }
 
 function isInsideCacheDir(path: string): boolean {
-  return cacheDir !== null && path.startsWith(cacheDir + "/");
+  return cacheDir !== null && isInsideDir(path, cacheDir) && path !== cacheDir;
 }
 
 export function getImageThumbnail(
@@ -98,7 +99,7 @@ export function getImageFull(
     return Promise.resolve({ url: "", width: 0, height: 0 });
   }
   if (isNativeImage(path)) {
-    const url = `collab-file://${encodeURIComponent(path).replace(/%2F/g, "/")}`;
+    const url = `collab-file://${encodeURIComponent(path.replace(/\\/g, "/")).replace(/%2F/g, "/")}`;
     return Promise.resolve({ url, width: 0, height: 0 });
   }
 
@@ -173,16 +174,13 @@ export async function resolveImagePath(
 ): Promise<string | null> {
   if (!workspacePath) return null;
 
-  const isRelative = reference.includes("/");
+  const isRelative = reference.includes("/") || reference.includes("\\");
 
   if (isRelative) {
-    const wsPrefix = workspacePath.endsWith("/")
-      ? workspacePath
-      : workspacePath + "/";
     const noteDir = dirname(fromNotePath);
     const fromNote = join(noteDir, reference);
     if (
-      (fromNote === workspacePath || fromNote.startsWith(wsPrefix)) &&
+      isInsideDir(fromNote, workspacePath) &&
       isImageFile(fromNote) &&
       await fileExists(fromNote)
     ) {
@@ -190,7 +188,7 @@ export async function resolveImagePath(
     }
     const fromRoot = join(workspacePath, reference);
     if (
-      (fromRoot === workspacePath || fromRoot.startsWith(wsPrefix)) &&
+      isInsideDir(fromRoot, workspacePath) &&
       isImageFile(fromRoot) &&
       await fileExists(fromRoot)
     ) {
@@ -209,12 +207,8 @@ export async function resolveImagePath(
   const noteDir = dirname(fromNotePath);
   const visited = new Set<string>();
 
-  const wsPrefix = workspacePath.endsWith("/")
-    ? workspacePath
-    : workspacePath + "/";
-
   let current = noteDir;
-  while (current === workspacePath || current.startsWith(wsPrefix)) {
+  while (isInsideDir(current, workspacePath)) {
     const found = await findImageInDir(current, reference);
     if (found) return found;
     visited.add(current);

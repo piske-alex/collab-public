@@ -14,6 +14,7 @@ import {
   SESSION_DIR,
   type SessionMeta,
 } from "./tmux";
+import { isWindows, getDefaultShell } from "./platform";
 
 interface PtySession {
   pty: pty.IPty;
@@ -125,11 +126,16 @@ export function createSession(
   rows?: number,
 ): { sessionId: string; shell: string } {
   const sessionId = crypto.randomBytes(8).toString("hex");
-  const shell = process.env.SHELL || "/bin/zsh";
-  const name = tmuxSessionName(sessionId);
+  const shell = getDefaultShell();
   const resolvedCwd = cwd || os.homedir();
   const c = cols || 80;
   const r = rows || 24;
+
+  if (isWindows) {
+    return createWindowsSession(sessionId, shell, resolvedCwd, c, r, senderWebContentsId);
+  }
+
+  const name = tmuxSessionName(sessionId);
 
   tmuxExec(
     "new-session", "-d",
@@ -162,6 +168,56 @@ export function createSession(
   return { sessionId, shell };
 }
 
+/**
+ * On Windows we skip tmux entirely and spawn a PTY directly via ConPTY.
+ */
+function createWindowsSession(
+  sessionId: string,
+  shell: string,
+  cwd: string,
+  cols: number,
+  rows: number,
+  senderWebContentsId?: number,
+): { sessionId: string; shell: string } {
+  const env = { ...process.env, COLLAB_PTY_SESSION_ID: sessionId } as Record<string, string>;
+
+  const ptyProcess = pty.spawn(shell, [], {
+    name: "xterm-256color",
+    cols,
+    rows,
+    cwd,
+    env,
+  });
+
+  const disposables: IDisposable[] = [];
+
+  disposables.push(
+    ptyProcess.onData((data: string) => {
+      sendToSender(senderWebContentsId, "pty:data", { sessionId, data });
+    }),
+  );
+
+  disposables.push(
+    ptyProcess.onExit(({ exitCode }) => {
+      deleteSessionMeta(sessionId);
+      if (!shuttingDown) {
+        sendToSender(senderWebContentsId, "pty:exit", { sessionId, exitCode });
+      }
+      sessions.delete(sessionId);
+    }),
+  );
+
+  sessions.set(sessionId, { pty: ptyProcess, shell, disposables });
+
+  writeSessionMeta(sessionId, {
+    shell,
+    cwd,
+    createdAt: new Date().toISOString(),
+  });
+
+  return { sessionId, shell };
+}
+
 function stripTrailingBlanks(text: string): string {
   const lines = text.split("\n");
   let end = lines.length;
@@ -182,6 +238,16 @@ export function reconnectSession(
   meta: SessionMeta | null;
   scrollback: string;
 } {
+  // Windows sessions are direct PTY — no tmux to reconnect to.
+  if (isWindows) {
+    const existing = sessions.get(sessionId);
+    if (!existing) {
+      throw new Error(`Session ${sessionId} not found (Windows sessions cannot survive restart)`);
+    }
+    const meta = readSessionMeta(sessionId);
+    return { sessionId, shell: existing.shell, meta, scrollback: "" };
+  }
+
   const name = tmuxSessionName(sessionId);
 
   try {
@@ -215,8 +281,7 @@ export function reconnectSession(
 
   const meta = readSessionMeta(sessionId);
   const session = sessions.get(sessionId)!;
-  session.shell =
-    meta?.shell || process.env.SHELL || "/bin/zsh";
+  session.shell = meta?.shell || getDefaultShell();
 
   return { sessionId, shell: session.shell, meta, scrollback };
 }
@@ -234,6 +299,11 @@ export function sendRawKeys(
   sessionId: string,
   data: string,
 ): void {
+  if (isWindows) {
+    // On Windows, write directly to the PTY (no tmux send-keys).
+    writeToSession(sessionId, data);
+    return;
+  }
   const name = tmuxSessionName(sessionId);
   tmuxExec("send-keys", "-l", "-t", name, data);
 }
@@ -247,14 +317,16 @@ export function resizeSession(
   if (!session) return;
   session.pty.resize(cols, rows);
 
-  const name = tmuxSessionName(sessionId);
-  try {
-    tmuxExec(
-      "resize-window", "-t", name,
-      "-x", String(cols), "-y", String(rows),
-    );
-  } catch {
-    // Non-fatal
+  if (!isWindows) {
+    const name = tmuxSessionName(sessionId);
+    try {
+      tmuxExec(
+        "resize-window", "-t", name,
+        "-x", String(cols), "-y", String(rows),
+      );
+    } catch {
+      // Non-fatal
+    }
   }
 }
 
@@ -266,11 +338,13 @@ export function killSession(sessionId: string): void {
     sessions.delete(sessionId);
   }
 
-  const name = tmuxSessionName(sessionId);
-  try {
-    tmuxExec("kill-session", "-t", name);
-  } catch {
-    // Session may already be dead
+  if (!isWindows) {
+    const name = tmuxSessionName(sessionId);
+    try {
+      tmuxExec("kill-session", "-t", name);
+    } catch {
+      // Session may already be dead
+    }
   }
 
   deleteSessionMeta(sessionId);
@@ -319,10 +393,12 @@ export function killAllAndWait(): Promise<void> {
 
 export function destroyAll(): void {
   killAll();
-  try {
-    tmuxExec("kill-server");
-  } catch {
-    // Server may not be running
+  if (!isWindows) {
+    try {
+      tmuxExec("kill-server");
+    } catch {
+      // Server may not be running
+    }
   }
 }
 
@@ -332,6 +408,17 @@ export interface DiscoveredSession {
 }
 
 export function discoverSessions(): DiscoveredSession[] {
+  // On Windows, sessions are in-memory only (no tmux). Return
+  // the sessions we currently hold.
+  if (isWindows) {
+    const result: DiscoveredSession[] = [];
+    for (const sessionId of sessions.keys()) {
+      const meta = readSessionMeta(sessionId);
+      if (meta) result.push({ sessionId, meta });
+    }
+    return result;
+  }
+
   let tmuxNames: string[];
   try {
     const raw = tmuxExec(
@@ -383,5 +470,6 @@ export function discoverSessions(): DiscoveredSession[] {
 }
 
 export function verifyTmuxAvailable(): void {
+  if (isWindows) return; // tmux not used on Windows
   tmuxExec("-V");
 }
