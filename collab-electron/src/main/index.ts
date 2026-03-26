@@ -722,6 +722,17 @@ app.whenReady().then(async () => {
     electronUA.replace(/\s*Electron\/\S+/, ""),
   );
 
+  // Allow clipboard access for terminal webviews (needed for Ctrl+V paste on Windows/Linux)
+  session.defaultSession.setPermissionRequestHandler(
+    (_webContents, permission, callback) => {
+      if (permission === "clipboard-read" || permission === "clipboard-sanitized-write") {
+        callback(true);
+        return;
+      }
+      callback(false);
+    },
+  );
+
   protocol.handle("collab-file", (request) => {
     let filePath = decodeURIComponent(
       new URL(request.url).pathname,

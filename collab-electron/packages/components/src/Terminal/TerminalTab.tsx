@@ -94,6 +94,24 @@ function TerminalTab({ sessionId, visible, restored, scrollbackData }: TerminalT
 					return false;
 				}
 			}
+
+			// Windows/Linux: Ctrl+C with selection → copy, Ctrl+V → paste
+			// On macOS Cmd+C/V is handled natively by the OS; on Windows
+			// we must handle it explicitly since Ctrl+C is also SIGINT.
+			if (e.type === "keydown" && e.ctrlKey && !e.metaKey) {
+				if (e.key === "c" && term.hasSelection()) {
+					navigator.clipboard.writeText(term.getSelection());
+					term.clearSelection();
+					return false; // prevent SIGINT
+				}
+				if (e.key === "v") {
+					navigator.clipboard.readText().then((text) => {
+						if (text) window.api.ptyWrite(sessionId, text);
+					});
+					return false;
+				}
+			}
+
 			return true;
 		});
 
