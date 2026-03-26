@@ -21,6 +21,7 @@ export function createTileManager({
 	onTerminalSessionCreated,
 	onTerminalTileClosed,
 	onTileFocused,
+	onTileDblClick,
 }) {
 	/** @type {Map<string, {container: HTMLElement, contentArea: HTMLElement, titleText: HTMLElement, webview?: HTMLElement}>} */
 	const tileDOMs = new Map();
@@ -179,6 +180,10 @@ export function createTileManager({
 			params.set("restored", "1");
 		} else if (tile.cwd) {
 			params.set("cwd", tile.cwd);
+		}
+		// Pass saved shell so restored terminals use the right shell (e.g. wsl vs powershell)
+		if (tile.shell) {
+			params.set("shell", tile.shell);
 		}
 		const qs = params.toString();
 		wv.setAttribute(
@@ -445,6 +450,12 @@ export function createTileManager({
 				spawnBrowserWebview(t);
 				saveCanvasImmediate();
 			},
+		});
+
+		// Double-click title bar → center tile in viewport
+		dom.titleBar.addEventListener("dblclick", (e) => {
+			e.stopPropagation();
+			if (onTileDblClick) onTileDblClick(tile);
 		});
 
 		attachDrag(dom.titleBar, tile, {

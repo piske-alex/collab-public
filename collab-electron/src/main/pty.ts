@@ -70,7 +70,7 @@ function wslDistro(p: string): string | null {
 
 // ── Shell resolution ──────────────────────────────────────────
 
-function resolveShell(cwd?: string): { shell: string; args: string[]; cwd: string | undefined } {
+function resolveShell(cwd?: string, shellOverride?: string): { shell: string; args: string[]; cwd: string | undefined } {
   const resolvedCwd = cwd;
 
   // If CWD is a WSL path, always use wsl.exe
@@ -82,7 +82,9 @@ function resolveShell(cwd?: string): { shell: string; args: string[]; cwd: strin
   }
 
   const config = loadConfig();
-  const pref = getPref(config, "terminal_shell") as string | null;
+  // shellOverride allows restoring the exact shell from a previous session
+  // (e.g. a WSL terminal that was saved and is being restored on restart)
+  const pref = shellOverride || (getPref(config, "terminal_shell") as string | null);
 
   if (pref && pref !== "auto") {
     if (pref === "powershell") return { shell: "powershell.exe", args: [], cwd: resolvedCwd };
@@ -219,8 +221,9 @@ export function createSession(
   senderWebContentsId?: number,
   cols?: number,
   rows?: number,
+  shellOverride?: string,
 ): { sessionId: string; shell: string } {
-  const resolved = resolveShell(cwd);
+  const resolved = resolveShell(cwd, shellOverride);
 
   if (!useTmux()) {
     return direct.createSession(resolved.shell, resolved.args, resolved.cwd, senderWebContentsId, cols, rows);

@@ -175,6 +175,8 @@ export async function fsWriteFile(
     }
   }
 
+  // Ensure parent directories exist (e.g. .collab/notes/ for note tiles)
+  await mkdir(dirname(filePath), { recursive: true });
   await writeFile(filePath, content, "utf-8");
   const after = await stat(filePath);
   return { ok: true, mtime: after.mtime.toISOString() };
