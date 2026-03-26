@@ -457,6 +457,23 @@ export function verifyTmuxAvailable(): void {
   tmuxExec("-V");
 }
 
+/**
+ * On non-tmux platforms, PTY sessions don't survive restarts.
+ * Clean up stale session metadata files so they don't appear as ghosts.
+ */
+export function cleanStaleSessionMeta(): void {
+  if (useTmux()) return; // tmux sessions survive restarts
+  try {
+    const files = fs.readdirSync(SESSION_DIR).filter((f) => f.endsWith(".json"));
+    for (const file of files) {
+      const sessionId = file.replace(".json", "");
+      deleteSessionMeta(sessionId);
+    }
+  } catch {
+    // SESSION_DIR may not exist yet
+  }
+}
+
 // ── Foreground process detection ──────────────────────────────
 
 export function getForegroundProcess(

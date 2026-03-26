@@ -745,6 +745,10 @@ app.whenReady().then(async () => {
     }
   }
 
+  // On non-tmux platforms, PTY sessions don't survive restarts —
+  // clean up stale metadata so the terminal list doesn't show ghosts.
+  pty.cleanStaleSessionMeta();
+
   config = loadConfig();
   installCli();
   watcher.startWorker();

@@ -587,6 +587,11 @@ export function createTileManager({
 	// -- Canvas state restore --
 
 	function restoreCanvasState(savedTiles) {
+		// On non-tmux platforms (Windows/Linux), PTY sessions don't survive
+		// restarts. Clear stale ptySessionIds so fresh terminals are spawned
+		// instead of ghost reconnection attempts.
+		const canReconnect = window.shellApi.getPlatform?.() === "darwin";
+
 		for (const saved of savedTiles) {
 			if (saved.type === "term") {
 				const tile = createCanvasTile(
@@ -595,7 +600,8 @@ export function createTileManager({
 						width: saved.width,
 						height: saved.height,
 						zIndex: saved.zIndex,
-						ptySessionId: saved.ptySessionId,
+						ptySessionId: canReconnect ? saved.ptySessionId : undefined,
+						cwd: saved.workspacePath || saved.cwd,
 						shell: saved.shell,
 						label: saved.label,
 						workspacePath: saved.workspacePath,
