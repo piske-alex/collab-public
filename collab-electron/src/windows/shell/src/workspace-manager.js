@@ -9,7 +9,7 @@ export function createWorkspaceManager({
 	panelNav, workspaceMenuItems, workspaceTriggerParent,
 	workspaceTriggerName, configs, createWebview,
 	handleDndMessage, onNoteSurfaceFocus, onSwitch,
-	onApplyNavVisibility,
+	onApplyNavVisibility, onFilterTiles,
 }) {
 	const workspaces = [];
 	let activeIndex = -1;
@@ -159,6 +159,7 @@ export function createWorkspaceManager({
 
 		onApplyNavVisibility();
 		renderDropdown();
+		if (onFilterTiles) onFilterTiles(wsPath);
 		onSwitch(index);
 	}
 

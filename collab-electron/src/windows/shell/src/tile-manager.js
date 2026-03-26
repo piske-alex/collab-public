@@ -520,8 +520,8 @@ export function createTileManager({
 		saveCanvasImmediate();
 	}
 
-	function createFileTile(type, cx, cy, filePath) {
-		const tile = createCanvasTile(type, cx, cy, { filePath });
+	function createFileTile(type, cx, cy, filePath, extra = {}) {
+		const tile = createCanvasTile(type, cx, cy, { filePath, ...extra });
 		const dom = tileDOMs.get(tile.id);
 		if (!dom) return tile;
 
@@ -593,6 +593,7 @@ export function createTileManager({
 						height: saved.height,
 						zIndex: saved.zIndex,
 						ptySessionId: saved.ptySessionId,
+						workspacePath: saved.workspacePath,
 					},
 				);
 				spawnTerminalWebview(tile);
@@ -616,12 +617,14 @@ export function createTileManager({
 						height: saved.height,
 						zIndex: saved.zIndex,
 						url: saved.url,
+						workspacePath: saved.workspacePath,
 					},
 				);
 				spawnBrowserWebview(tile);
 			} else if (saved.filePath) {
 				createFileTile(
 					saved.type, saved.x, saved.y, saved.filePath,
+					{ workspacePath: saved.workspacePath },
 				);
 			}
 		}
@@ -682,6 +685,20 @@ export function createTileManager({
 		}
 	}
 
+	function filterTilesByWorkspace(workspacePath) {
+		for (const tile of tiles) {
+			const dom = tileDOMs.get(tile.id);
+			if (!dom) continue;
+			// Tiles without a workspacePath are always visible
+			if (!tile.workspacePath) {
+				dom.container.style.display = "";
+				continue;
+			}
+			const match = tile.workspacePath === workspacePath;
+			dom.container.style.display = match ? "" : "none";
+		}
+	}
+
 	return {
 		createCanvasTile,
 		closeCanvasTile,
@@ -704,6 +721,7 @@ export function createTileManager({
 		updateTileForRename,
 		closeTilesForDeletedPaths,
 		broadcastToTileWebviews,
+		filterTilesByWorkspace,
 		saveCanvasDebounced,
 		saveCanvasImmediate,
 	};

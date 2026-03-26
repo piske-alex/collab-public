@@ -202,6 +202,7 @@ async function init() {
 
 	// -- Workspace manager --
 
+	let tileManagerRef = null;
 	const workspaceManager = createWorkspaceManager({
 		panelNav, workspaceMenuItems,
 		workspaceTriggerParent, workspaceTriggerName,
@@ -212,6 +213,9 @@ async function init() {
 		},
 		onApplyNavVisibility() {
 			panelManager.applyVisibility();
+		},
+		onFilterTiles(wsPath) {
+			if (tileManagerRef) tileManagerRef.filterTilesByWorkspace(wsPath);
 		},
 	});
 
@@ -261,6 +265,7 @@ async function init() {
 			);
 		},
 	});
+	tileManagerRef = tileManager;
 
 	// -- Edge indicators --
 
@@ -456,7 +461,7 @@ async function init() {
 		const ws = workspaceManager.getActiveWorkspace();
 		const cwd = ws ? ws.path : undefined;
 		const tile = tileManager.createCanvasTile(
-			"term", cx, cy, { cwd },
+			"term", cx, cy, { cwd, workspacePath: cwd },
 		);
 		tileManager.spawnTerminalWebview(tile, true);
 		tileManager.saveCanvasImmediate();
@@ -486,13 +491,15 @@ async function init() {
 			const ws = workspaceManager.getActiveWorkspace();
 			const cwd = ws ? ws.path : undefined;
 			const tile = tileManager.createCanvasTile(
-				"term", cx, cy, { cwd },
+				"term", cx, cy, { cwd, workspacePath: cwd },
 			);
 			tileManager.spawnTerminalWebview(tile, true);
 			tileManager.saveCanvasImmediate();
 		} else if (selected === "new-browser") {
+			const wsB = workspaceManager.getActiveWorkspace();
 			const tile = tileManager.createCanvasTile(
 				"browser", cx, cy,
+				{ workspacePath: wsB ? wsB.path : undefined },
 			);
 			tileManager.spawnBrowserWebview(tile, true);
 			tileManager.saveCanvasImmediate();
@@ -808,6 +815,7 @@ async function init() {
 			} else if (target === "canvas") {
 				if (channel === "open-terminal") {
 					const cwd = args[0];
+					const wsT = workspaceManager.getActiveWorkspace();
 					const size = defaultSize("term");
 					const rect = canvasEl.getBoundingClientRect();
 					const cx =
@@ -817,7 +825,7 @@ async function init() {
 						(rect.height / 2 - viewportState.panY) /
 						viewportState.zoom - size.height / 2;
 					const tile = tileManager.createCanvasTile(
-						"term", cx, cy, { cwd },
+						"term", cx, cy, { cwd, workspacePath: wsT ? wsT.path : cwd },
 					);
 					tileManager.spawnTerminalWebview(tile, true);
 					tileManager.saveCanvasImmediate();
@@ -837,7 +845,8 @@ async function init() {
 					}
 					const x = srcTile ? srcTile.x + 40 : 0;
 					const y = srcTile ? srcTile.y + 40 : 0;
-					const extra = { url };
+					const wsBr = workspaceManager.getActiveWorkspace();
+					const extra = { url, workspacePath: wsBr ? wsBr.path : undefined };
 					if (srcTile) {
 						extra.width = srcTile.width;
 						extra.height = srcTile.height;
@@ -1165,11 +1174,13 @@ async function init() {
 		const viewerRect = panelViewer.getBoundingClientRect();
 		if (e.clientX < viewerRect.left) return;
 
+		const wsF = workspaceManager.getActiveWorkspace();
 		for (let i = 0; i < paths.length; i++) {
 			const filePath = paths[i];
 			const type = inferTileType(filePath);
 			tileManager.createFileTile(
 				type, cx + i * 30, cy + i * 30, filePath,
+				{ workspacePath: wsF ? wsF.path : undefined },
 			);
 		}
 	});

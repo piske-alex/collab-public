@@ -8,6 +8,9 @@ export interface SessionMeta {
   shell: string;
   cwd: string;
   createdAt: string;
+  scrollback?: string;
+  savedAt?: string;
+  mode?: "tmux" | "direct";
 }
 
 export const SESSION_DIR = path.join(
@@ -32,11 +35,19 @@ function getApp(): typeof import("electron").app | null {
 }
 
 export function getTmuxBin(): string {
+  const isWin = process.platform === "win32";
+  const bin = isWin ? "tmux.exe" : "tmux";
   const app = getApp();
   if (app?.isPackaged) {
-    return path.join(process.resourcesPath, "tmux");
+    return path.join(process.resourcesPath, bin);
   }
-  return "tmux";
+  // Dev mode: on Windows, try vendor/tmux-win/ first
+  if (isWin) {
+    const root = app?.getAppPath() ?? process.cwd();
+    const vendorBin = path.join(root, "vendor", "tmux-win", "tmux.exe");
+    if (fs.existsSync(vendorBin)) return vendorBin;
+  }
+  return bin;
 }
 
 

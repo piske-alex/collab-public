@@ -1,6 +1,12 @@
 {
 	"name": "@collaborator/electron",
 	"version": "0.4.0",
+	"description": "Collaborator – the spatial workspace for developers",
+	"author": {
+		"name": "Collaborator",
+		"email": "hello@collaborator.dev"
+	},
+	"homepage": "https://github.com/piske-alex/collab-public",
 	"private": true,
 	"license": "FSL-1.1-ALv2",
 	"type": "module",

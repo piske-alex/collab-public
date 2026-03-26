@@ -428,6 +428,7 @@ function createWindow(): void {
     (saved.isMaximized || boundsVisibleOnAnyDisplay(saved));
   const state = useSaved ? saved : DEFAULT_STATE;
 
+  const isMac = process.platform === "darwin";
   const windowOptions: Electron.BrowserWindowConstructorOptions = {
     width: state.width,
     height: state.height,
@@ -641,6 +642,7 @@ async function shutdownBackgroundServices(): Promise<void> {
   if (shuttingDown) return;
   shuttingDown = true;
   pty.setShuttingDown(true);
+  pty.saveAllSessions();
   await pty.killAllAndWait();
   watcher.stopWorker();
   if (!DISABLE_GIT_REPLAY) gitReplay.stopWorker();

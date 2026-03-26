@@ -6,6 +6,7 @@ import {
   Sun,
   Moon,
   Monitor,
+  Terminal,
 } from "@phosphor-icons/react";
 
 type ThemeMode = "light" | "dark" | "system";
@@ -295,7 +296,66 @@ function ShortcutsPane() {
   );
 }
 
-type Pane = "appearance" | "shortcuts";
+type ShellOption = "auto" | "powershell" | "cmd" | "bash";
+
+const SHELL_OPTIONS: { value: ShellOption; label: string }[] = [
+  { value: "auto", label: "Auto-detect" },
+  { value: "powershell", label: "PowerShell" },
+  { value: "cmd", label: "Command Prompt (cmd)" },
+  { value: "bash", label: "Bash" },
+];
+
+function TerminalPane() {
+  const [shell, setShell] = useState<ShellOption>("auto");
+
+  useEffect(() => {
+    api.getPref("terminal_shell")
+      .then((v) => {
+        if (typeof v === "string" && SHELL_OPTIONS.some((o) => o.value === v)) {
+          setShell(v as ShellOption);
+        }
+      })
+      .catch(() => { });
+  }, []);
+
+  async function handleShellChange(value: ShellOption) {
+    setShell(value);
+    await api.setPref("terminal_shell", value);
+  }
+
+  return (
+    <div className="space-y-6 p-6">
+      <div className="space-y-1">
+        <h2 className="text-base font-semibold">Terminal</h2>
+        <p className="text-sm text-muted-foreground">
+          Configure the integrated terminal.
+        </p>
+      </div>
+
+      <div className="flex items-center justify-between">
+        <div className="space-y-0.5">
+          <p className="text-sm font-medium">Shell</p>
+          <p className="text-xs text-muted-foreground">
+            The shell used for new terminal sessions.
+          </p>
+        </div>
+        <select
+          value={shell}
+          onChange={(e) => { void handleShellChange(e.target.value as ShellOption); }}
+          className="rounded-md border border-border bg-background px-2.5 py-1.5 text-sm text-foreground cursor-pointer focus:outline-none focus:ring-1 focus:ring-accent"
+        >
+          {SHELL_OPTIONS.map((opt) => (
+            <option key={opt.value} value={opt.value}>
+              {opt.label}
+            </option>
+          ))}
+        </select>
+      </div>
+    </div>
+  );
+}
+
+type Pane = "appearance" | "shortcuts" | "terminal";
 
 const NAV_ITEMS: {
   id: Pane;
@@ -303,6 +363,7 @@ const NAV_ITEMS: {
   icon: typeof Palette;
 }[] = [
     { id: "appearance", label: "Appearance", icon: Palette },
+    { id: "terminal", label: "Terminal", icon: Terminal },
     { id: "shortcuts", label: "Shortcuts", icon: Keyboard },
   ];
 
@@ -425,6 +486,7 @@ export default function App() {
       {/* Content */}
       <div className="flex-1 overflow-auto">
         {activePane === "appearance" && <AppearancePane />}
+        {activePane === "terminal" && <TerminalPane />}
         {activePane === "shortcuts" && <ShortcutsPane />}
       </div>
     </div>
