@@ -52,6 +52,7 @@ function App() {
               setSessionId(result.sessionId);
               window.api.notifyPtySessionId(
                 result.sessionId,
+                result.shell,
               );
             })
             .catch(() => {
@@ -72,7 +73,7 @@ function App() {
       .ptyCreate(cwd, cols, rows)
       .then((result) => {
         setSessionId(result.sessionId);
-        window.api.notifyPtySessionId(result.sessionId);
+        window.api.notifyPtySessionId(result.sessionId, result.shell);
       })
       .catch(() => {
         setExited(true);

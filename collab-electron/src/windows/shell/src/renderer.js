@@ -247,7 +247,8 @@ async function init() {
 		onTerminalSessionCreated(tile) {
 			terminalListWebview.send("terminal-list:add", {
 				sessionId: tile.ptySessionId,
-				shell: "zsh",
+				shell: tile.shell || "shell",
+				label: tile.label || null,
 				cwd: tile.cwd || "~",
 				foreground: null,
 				tileId: tile.id,
@@ -367,6 +368,11 @@ async function init() {
 
 		requestAnimationFrame(() => {
 			window.focus();
+			if (surface === "terminal-list") {
+				terminalListWebview.webview.focus();
+				noteSurfaceFocus("terminal-list");
+				return;
+			}
 			if (surface === "settings") {
 				singletonWebviews.settings.webview.focus();
 				noteSurfaceFocus("settings");
@@ -485,6 +491,7 @@ async function init() {
 		const selected = await window.shellApi.showContextMenu([
 			{ id: "new-terminal", label: "New terminal tile" },
 			{ id: "new-browser", label: "New browser tile" },
+			{ id: "new-note", label: "New note tile" },
 		]);
 
 		if (selected === "new-terminal") {
@@ -503,6 +510,35 @@ async function init() {
 			);
 			tileManager.spawnBrowserWebview(tile, true);
 			tileManager.saveCanvasImmediate();
+		} else if (selected === "new-note") {
+			const ws = workspaceManager.getActiveWorkspace();
+			const wsPath = ws ? ws.path : null;
+			if (!wsPath) return;
+
+			const folderPath = `${wsPath}/.collab/notes`;
+			let fileName = "Untitled.md";
+			try {
+				const entries = await window.shellApi.readDir(folderPath);
+				const existing = new Set(
+					entries.map((en) => en.name.toLowerCase()),
+				);
+				if (existing.has(fileName.toLowerCase())) {
+					let n = 2;
+					while (existing.has(`untitled ${n}.md`)) n++;
+					fileName = `Untitled ${n}.md`;
+				}
+			} catch {
+				// First note — folder doesn't exist yet
+			}
+
+			const filePath = `${folderPath}/${fileName}`;
+			const frontmatter = "---\ntype: \"note\"\n---\n";
+			await window.shellApi.writeFile(filePath, frontmatter);
+
+			tileManager.createFileTile(
+				"note", cx, cy, filePath,
+				{ workspacePath: wsPath },
+			);
 		}
 	});
 
@@ -740,7 +776,15 @@ async function init() {
 		} else if (action === "add-workspace") {
 			wsAddOption.click();
 		} else if (action === "toggle-terminal-list") {
-			terminalPanel.toggle();
+			if (terminalPanel.isVisible() && activeSurface === "terminal-list") {
+				terminalPanel.setVisible(false);
+			} else {
+				if (!terminalPanel.isVisible()) {
+					terminalPanel.setVisible(true);
+				}
+				terminalListWebview.webview.focus();
+				focusSurface("terminal-list");
+			}
 		}
 	}
 
@@ -927,7 +971,8 @@ async function init() {
 					);
 					initEntries.push({
 						sessionId: tile.ptySessionId,
-						shell: disc?.meta?.shell || "zsh",
+						shell: tile.shell || disc?.meta?.shell || "shell",
+						label: tile.label || null,
 						cwd: disc?.meta?.cwd || "~",
 						foreground: null,
 						tileId: tile.id,
@@ -960,10 +1005,47 @@ async function init() {
 						tile?.type === "term" &&
 						tile.ptySessionId === sessionId
 					) {
+						if (tile.workspacePath) {
+							const ws = workspaceManager.getActiveWorkspace();
+							if (ws && ws.path !== tile.workspacePath) {
+								const all = workspaceManager.getWorkspaces();
+								const idx = all.findIndex(
+									(w) => w.path === tile.workspacePath,
+								);
+								if (idx >= 0) workspaceManager.switchWorkspace(idx);
+							}
+						}
 						edgeIndicators.panToTile(tile);
 						break;
 					}
 				}
+			} else if (event.channel === "terminal-list:focus-tile") {
+				const sessionId = event.args[0];
+				for (const [id] of tileManager.getTileDOMs()) {
+					const tile = getTile(id);
+					if (
+						tile?.type === "term" &&
+						tile.ptySessionId === sessionId
+					) {
+						if (tile.workspacePath) {
+							const ws = workspaceManager.getActiveWorkspace();
+							if (ws && ws.path !== tile.workspacePath) {
+								const all = workspaceManager.getWorkspaces();
+								const idx = all.findIndex(
+									(w) => w.path === tile.workspacePath,
+								);
+								if (idx >= 0) workspaceManager.switchWorkspace(idx);
+							}
+						}
+						tileManager.focusCanvasTile(id);
+						break;
+					}
+				}
+			} else if (event.channel === "terminal-list:blur") {
+				focusSurface("canvas");
+			} else if (event.channel === "terminal-list:rename") {
+				const { sessionId, label } = event.args[0];
+				tileManager.updateTerminalLabel(sessionId, label);
 			}
 		},
 	);

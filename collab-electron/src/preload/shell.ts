@@ -248,4 +248,9 @@ contextBridge.exposeInMainWorld("shellApi", {
   ptyDiscover: () => ipcRenderer.invoke("pty:discover"),
   ptyCleanDetached: (activeSessionIds: string[]) =>
     ipcRenderer.invoke("pty:clean-detached", activeSessionIds),
+
+  writeFile: (path: string, content: string) =>
+    ipcRenderer.invoke("fs:writefile", path, content),
+  readDir: (dirPath: string) =>
+    ipcRenderer.invoke("fs:readdir", dirPath),
 });

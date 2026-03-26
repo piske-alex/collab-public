@@ -50,6 +50,8 @@ export function createTileManager({
 				folderPath: t.folderPath,
 				workspacePath: t.workspacePath,
 				ptySessionId: t.ptySessionId,
+				shell: t.shell,
+				label: t.label,
 				url: t.url,
 				zIndex: t.zIndex,
 			})),
@@ -202,6 +204,7 @@ export function createTileManager({
 		wv.addEventListener("ipc-message", (event) => {
 			if (event.channel === "pty-session-id") {
 				tile.ptySessionId = event.args[0];
+				tile.shell = event.args[1] || undefined;
 				saveCanvasDebounced();
 				if (onTerminalSessionCreated) {
 					onTerminalSessionCreated(tile);
@@ -593,6 +596,8 @@ export function createTileManager({
 						height: saved.height,
 						zIndex: saved.zIndex,
 						ptySessionId: saved.ptySessionId,
+						shell: saved.shell,
+						label: saved.label,
 						workspacePath: saved.workspacePath,
 					},
 				);
@@ -626,6 +631,18 @@ export function createTileManager({
 					saved.type, saved.x, saved.y, saved.filePath,
 					{ workspacePath: saved.workspacePath },
 				);
+			}
+		}
+	}
+
+	function updateTerminalLabel(sessionId, label) {
+		for (const t of tiles) {
+			if (t.type === "term" && t.ptySessionId === sessionId) {
+				t.label = label || undefined;
+				const dom = tileDOMs.get(t.id);
+				if (dom) updateTileTitle(dom, t);
+				saveCanvasDebounced();
+				return;
 			}
 		}
 	}
@@ -719,6 +736,7 @@ export function createTileManager({
 		getFocusedTileId: () => focusedTileId,
 		setFocusedTileId: (id) => { focusedTileId = id; },
 		updateTileForRename,
+		updateTerminalLabel,
 		closeTilesForDeletedPaths,
 		broadcastToTileWebviews,
 		filterTilesByWorkspace,
