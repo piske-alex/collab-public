@@ -57,6 +57,7 @@ export function createTileManager({
 				folderPath: t.folderPath,
 				workspacePath: t.workspacePath,
 				ptySessionId: t.ptySessionId,
+				shell: t.shell,
 				url: t.url,
 				zIndex: t.zIndex,
 			})),
@@ -209,6 +210,7 @@ export function createTileManager({
 		wv.addEventListener("ipc-message", (event) => {
 			if (event.channel === "pty-session-id") {
 				tile.ptySessionId = event.args[0];
+				tile.shell = event.args[1] || undefined;
 				saveCanvasDebounced();
 				if (onTerminalSessionCreated) {
 					onTerminalSessionCreated(tile);
@@ -611,6 +613,7 @@ export function createTileManager({
 						height: saved.height,
 						zIndex: saved.zIndex,
 						ptySessionId: saved.ptySessionId,
+						shell: saved.shell,
 					},
 				);
 				spawnTerminalWebview(tile);
