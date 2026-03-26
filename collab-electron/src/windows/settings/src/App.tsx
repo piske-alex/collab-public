@@ -296,13 +296,14 @@ function ShortcutsPane() {
   );
 }
 
-type ShellOption = "auto" | "powershell" | "cmd" | "bash";
+type ShellOption = "auto" | "powershell" | "cmd" | "bash" | "wsl";
 
 const SHELL_OPTIONS: { value: ShellOption; label: string }[] = [
   { value: "auto", label: "Auto-detect" },
   { value: "powershell", label: "PowerShell" },
   { value: "cmd", label: "Command Prompt (cmd)" },
   { value: "bash", label: "Bash" },
+  { value: "wsl", label: "WSL (Windows Subsystem for Linux)" },
 ];
 
 function TerminalPane() {

@@ -44,17 +44,56 @@ function useTmux(): boolean {
   return _useTmux;
 }
 
+// ── WSL detection ─────────────────────────────────────────────
+
+const WSL_PATH_RE = /^[\\/]{2}(wsl\$|wsl\.localhost)[\\/]/i;
+
+function isWslPath(p: string): boolean {
+  return WSL_PATH_RE.test(p);
+}
+
+/** Convert a UNC WSL path to a Linux path for use inside WSL.
+ *  \\wsl$\Ubuntu\home\user → /home/user
+ *  \\wsl.localhost\Ubuntu\home\user → /home/user
+ */
+function wslToLinuxPath(p: string): string {
+  // Strip \\wsl$\<distro>\ or \\wsl.localhost\<distro>\
+  const parts = p.replace(/\\/g, "/").replace(/^\/\/[^/]+\/[^/]+/, "");
+  return parts || "/";
+}
+
+/** Extract the distro name from a WSL UNC path. */
+function wslDistro(p: string): string | null {
+  const m = p.replace(/\\/g, "/").match(/^\/\/[^/]+\/([^/]+)/);
+  return m ? m[1] : null;
+}
+
 // ── Shell resolution ──────────────────────────────────────────
 
-function resolveShell(): string {
+function resolveShell(cwd?: string): { shell: string; args: string[]; cwd: string | undefined } {
+  const resolvedCwd = cwd;
+
+  // If CWD is a WSL path, always use wsl.exe
+  if (process.platform === "win32" && resolvedCwd && isWslPath(resolvedCwd)) {
+    const distro = wslDistro(resolvedCwd);
+    const linuxCwd = wslToLinuxPath(resolvedCwd);
+    const args = distro ? ["-d", distro, "--cd", linuxCwd] : ["--cd", linuxCwd];
+    return { shell: "wsl.exe", args, cwd: undefined };
+  }
+
   const config = loadConfig();
   const pref = getPref(config, "terminal_shell") as string | null;
 
   if (pref && pref !== "auto") {
-    if (pref === "powershell") return "powershell.exe";
-    if (pref === "cmd") return "cmd.exe";
-    if (pref === "bash") return process.platform === "win32" ? "bash.exe" : "/bin/bash";
-    return pref;
+    if (pref === "powershell") return { shell: "powershell.exe", args: [], cwd: resolvedCwd };
+    if (pref === "cmd") return { shell: "cmd.exe", args: [], cwd: resolvedCwd };
+    if (pref === "bash") return { shell: process.platform === "win32" ? "bash.exe" : "/bin/bash", args: [], cwd: resolvedCwd };
+    if (pref === "wsl") {
+      const linuxCwd = resolvedCwd ? resolvedCwd.replace(/\\/g, "/").replace(/^([A-Z]):/i, (_, d) => `/mnt/${d.toLowerCase()}`) : undefined;
+      const args = linuxCwd ? ["--cd", linuxCwd] : [];
+      return { shell: "wsl.exe", args, cwd: undefined };
+    }
+    return { shell: pref, args: [], cwd: resolvedCwd };
   }
 
   if (process.platform === "win32") {
@@ -64,13 +103,13 @@ function resolveShell(): string {
         timeout: 3000,
         stdio: "pipe",
       });
-      return "powershell.exe";
+      return { shell: "powershell.exe", args: [], cwd: resolvedCwd };
     } catch {
-      return process.env.COMSPEC || "cmd.exe";
+      return { shell: process.env.COMSPEC || "cmd.exe", args: [], cwd: resolvedCwd };
     }
   }
 
-  return process.env.SHELL || "/bin/zsh";
+  return { shell: process.env.SHELL || "/bin/zsh", args: [], cwd: resolvedCwd };
 }
 
 // ── Shared helpers ────────────────────────────────────────────
@@ -181,16 +220,16 @@ export function createSession(
   cols?: number,
   rows?: number,
 ): { sessionId: string; shell: string } {
-  const shell = resolveShell();
+  const resolved = resolveShell(cwd);
 
   if (!useTmux()) {
-    return direct.createSession(shell, cwd, senderWebContentsId, cols, rows);
+    return direct.createSession(resolved.shell, resolved.args, resolved.cwd, senderWebContentsId, cols, rows);
   }
 
   // ── tmux path ──
   const sessionId = crypto.randomBytes(8).toString("hex");
   const name = tmuxSessionName(sessionId);
-  const resolvedCwd = cwd || os.homedir();
+  const resolvedCwd = resolved.cwd || os.homedir();
   const c = cols || 80;
   const r = rows || 24;
 
@@ -200,14 +239,14 @@ export function createSession(
     "-c", resolvedCwd,
     "-x", String(c),
     "-y", String(r),
-    shell,
+    resolved.shell,
   );
 
   tmuxExec("set-environment", "-t", name, "COLLAB_PTY_SESSION_ID", sessionId);
-  tmuxExec("set-environment", "-t", name, "SHELL", shell);
+  tmuxExec("set-environment", "-t", name, "SHELL", resolved.shell);
 
   writeSessionMeta(sessionId, {
-    shell,
+    shell: resolved.shell,
     cwd: resolvedCwd,
     createdAt: new Date().toISOString(),
     mode: "tmux",
@@ -215,9 +254,9 @@ export function createSession(
 
   attachClient(sessionId, c, r, senderWebContentsId);
   const session = tmuxSessions.get(sessionId)!;
-  session.shell = shell;
+  session.shell = resolved.shell;
 
-  return { sessionId, shell };
+  return { sessionId, shell: resolved.shell };
 }
 
 export function reconnectSession(
@@ -231,10 +270,12 @@ export function reconnectSession(
   meta: SessionMeta | null;
   scrollback: string;
 } {
-  const shell = resolveShell();
+  // For reconnect, read saved CWD to determine if WSL shell is needed
+  const savedMeta = readSessionMeta(sessionId);
+  const resolved = resolveShell(savedMeta?.cwd);
 
   if (!useTmux()) {
-    return direct.reconnectSession(sessionId, shell, cols, rows, senderWebContentsId);
+    return direct.reconnectSession(sessionId, resolved.shell, resolved.args, cols, rows, senderWebContentsId);
   }
 
   // ── tmux path ──
@@ -261,7 +302,7 @@ export function reconnectSession(
 
   const meta = readSessionMeta(sessionId);
   const session = tmuxSessions.get(sessionId)!;
-  session.shell = meta?.shell || shell;
+  session.shell = meta?.shell || resolved.shell;
 
   return { sessionId, shell: session.shell, meta, scrollback };
 }

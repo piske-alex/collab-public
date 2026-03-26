@@ -112,6 +112,7 @@ export function setShuttingDown(value: boolean): void {
 
 export function createSession(
   shell: string,
+  args: string[],
   cwd?: string,
   senderWebContentsId?: number,
   cols?: number,
@@ -122,11 +123,12 @@ export function createSession(
   const c = cols || 80;
   const r = rows || 24;
 
-  const ptyProcess = pty.spawn(shell, [], {
+  // When args include --cd (WSL), don't pass cwd to pty.spawn
+  const ptyProcess = pty.spawn(shell, args, {
     name: "xterm-256color",
     cols: c,
     rows: r,
-    cwd: resolvedCwd,
+    cwd: args.length > 0 ? undefined : resolvedCwd,
     env: utf8Env(),
   });
 
@@ -171,6 +173,7 @@ export function createSession(
 export function reconnectSession(
   sessionId: string,
   shell: string,
+  args: string[],
   cols: number,
   rows: number,
   senderWebContentsId: number,
@@ -192,11 +195,12 @@ export function reconnectSession(
   const resolvedCwd = meta.cwd || os.homedir();
   const resolvedShell = meta.shell || shell;
 
-  const ptyProcess = pty.spawn(resolvedShell, [], {
+  // Use provided args (e.g. WSL --cd) or empty
+  const ptyProcess = pty.spawn(resolvedShell, args, {
     name: "xterm-256color",
     cols,
     rows,
-    cwd: resolvedCwd,
+    cwd: args.length > 0 ? undefined : resolvedCwd,
     env: utf8Env(),
   });
 
