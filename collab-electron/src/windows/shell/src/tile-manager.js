@@ -21,6 +21,7 @@ export function createTileManager({
 	onTerminalSessionCreated,
 	onTerminalTileClosed,
 	onTileFocused,
+	onTileDblClick,
 }) {
 	/** @type {Map<string, {container: HTMLElement, contentArea: HTMLElement, titleText: HTMLElement, webview?: HTMLElement}>} */
 	const tileDOMs = new Map();
@@ -445,6 +446,12 @@ export function createTileManager({
 				spawnBrowserWebview(t);
 				saveCanvasImmediate();
 			},
+		});
+
+		// Double-click title bar → center tile in viewport
+		dom.titleBar.addEventListener("dblclick", (e) => {
+			e.stopPropagation();
+			if (onTileDblClick) onTileDblClick(tile);
 		});
 
 		attachDrag(dom.titleBar, tile, {
