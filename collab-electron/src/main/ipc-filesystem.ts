@@ -12,6 +12,7 @@ import {
   fsMove,
 } from "./files";
 import { isInsideDir } from "./platform";
+import type { FsBackend } from "./ssh/fs-backend";
 import {
   getImageThumbnail,
   getImageFull,
@@ -42,6 +43,7 @@ export interface IpcFilesystemContext {
     },
   ) => void;
   fileFilter: () => FileFilter | null;
+  backend: () => FsBackend;
   forwardToWebview: (
     target: string,
     channel: string,
@@ -76,7 +78,7 @@ export function registerFilesystemHandlers(
   ctx: IpcFilesystemContext,
 ): void {
   ipcMain.handle("fs:readdir", (_event, path) =>
-    fsReadDir(
+    ctx.backend().readDir(
       path,
       ctx.fileFilter() ?? undefined,
       ctx.getActiveWorkspacePath() ?? undefined,
@@ -84,7 +86,7 @@ export function registerFilesystemHandlers(
   );
 
   ipcMain.handle("fs:count-files", (_event, path) =>
-    countTreeFiles(
+    ctx.backend().countFiles(
       path,
       ctx.fileFilter() ?? undefined,
       ctx.getActiveWorkspacePath() ?? undefined,
@@ -92,13 +94,13 @@ export function registerFilesystemHandlers(
   );
 
   ipcMain.handle("fs:readfile", (_event, path) =>
-    fsReadFile(path),
+    ctx.backend().readFile(path),
   );
 
   ipcMain.handle(
     "fs:writefile",
     async (_event, path, content, expectedMtime?: string) => {
-      const result = await fsWriteFile(
+      const result = await ctx.backend().writeFile(
         path,
         content,
         expectedMtime,
@@ -134,7 +136,7 @@ export function registerFilesystemHandlers(
       const ext =
         dotIndex > slashIndex ? oldPath.slice(dotIndex) : "";
       bumpRenameRefCount(oldPath);
-      const newPath = await fsRename(
+      const newPath = await ctx.backend().rename(
         oldPath,
         `${sanitized}${ext}`,
       );
@@ -180,21 +182,17 @@ export function registerFilesystemHandlers(
   );
 
   ipcMain.handle("fs:stat", async (_event, path: string) => {
-    const stats = await stat(path);
-    return {
-      ctime: stats.birthtime.toISOString(),
-      mtime: stats.mtime.toISOString(),
-    };
+    return ctx.backend().stat(path);
   });
 
   ipcMain.handle("fs:trash", async (_event, path: string) => {
-    await shell.trashItem(path);
+    await ctx.backend().trash(path);
     ctx.trackEvent("file_trashed");
     ctx.fileFilter()?.invalidateBinaryCache([path]);
   });
 
   ipcMain.handle("fs:mkdir", async (_event, path: string) => {
-    await fsMkdir(path);
+    await ctx.backend().mkdir(path);
     ctx.trackEvent("folder_created");
     const event = [
       {
@@ -210,7 +208,7 @@ export function registerFilesystemHandlers(
     "fs:move",
     async (_event, oldPath: string, newParentDir: string) => {
       bumpRenameRefCount(oldPath);
-      const newPath = await fsMove(oldPath, newParentDir);
+      const newPath = await ctx.backend().move(oldPath, newParentDir);
       ctx.trackEvent("file_moved");
       ctx.fileFilter()?.invalidateBinaryCache([oldPath, newPath]);
 

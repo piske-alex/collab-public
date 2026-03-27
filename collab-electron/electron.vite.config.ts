@@ -15,7 +15,7 @@ export default defineConfig({
     build: {
       outDir: resolve(__dirname, outDir, "main"),
       rollupOptions: {
-        external: ["node-pty", "@parcel/watcher", "typescript", "sharp"],
+        external: ["node-pty", "@parcel/watcher", "typescript", "sharp", "ssh2"],
         input: {
           index: resolve(__dirname, "src/main/index.ts"),
           "watcher-worker": resolve(

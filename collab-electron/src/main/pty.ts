@@ -21,6 +21,8 @@ import {
   type SessionMeta,
 } from "./tmux";
 import * as direct from "./pty-direct";
+import * as sshPty from "./ssh/ssh-pty";
+import { isSshWorkspace } from "./ssh/workspace-uri";
 
 export type { SessionMeta };
 export { SESSION_DIR };
@@ -214,6 +216,7 @@ function attachClient(
 export function setShuttingDown(value: boolean): void {
   shuttingDown = value;
   direct.setShuttingDown(value);
+  sshPty.setShuttingDown(value);
 }
 
 export function createSession(
@@ -222,7 +225,13 @@ export function createSession(
   cols?: number,
   rows?: number,
   shellOverride?: string,
-): { sessionId: string; shell: string } {
+): { sessionId: string; shell: string } | Promise<{ sessionId: string; shell: string }> {
+  // SSH workspace — route to ssh-pty
+  if (cwd && isSshWorkspace(cwd)) {
+    const info = require("./ssh/workspace-uri").parseWorkspaceUri(cwd);
+    return sshPty.createSession(cwd, info.remotePath, senderWebContentsId, cols, rows);
+  }
+
   const resolved = resolveShell(cwd, shellOverride);
 
   if (!useTmux()) {
@@ -273,6 +282,14 @@ export function reconnectSession(
   meta: SessionMeta | null;
   scrollback: string;
 } {
+  // SSH sessions — reconnect via ssh-pty
+  if (sshPty.isSshSession(sessionId)) {
+    const meta = readSessionMeta(sessionId);
+    // Find the SSH workspace URI from meta or session state
+    // For now, throw — SSH sessions don't survive app restart
+    throw new Error(`SSH session ${sessionId} cannot be reconnected after restart`);
+  }
+
   // For reconnect, read saved CWD to determine if WSL shell is needed
   const savedMeta = readSessionMeta(sessionId);
   const resolved = resolveShell(savedMeta?.cwd);
@@ -311,17 +328,20 @@ export function reconnectSession(
 }
 
 export function writeToSession(sessionId: string, data: string): void {
+  if (sshPty.isSshSession(sessionId)) return sshPty.writeToSession(sessionId, data);
   if (!useTmux()) return direct.writeToSession(sessionId, data);
   tmuxSessions.get(sessionId)?.pty.write(data);
 }
 
 export function sendRawKeys(sessionId: string, data: string): void {
+  if (sshPty.isSshSession(sessionId)) return sshPty.sendRawKeys(sessionId, data);
   if (!useTmux()) return direct.sendRawKeys(sessionId, data);
   const name = tmuxSessionName(sessionId);
   tmuxExec("send-keys", "-l", "-t", name, data);
 }
 
 export function resizeSession(sessionId: string, cols: number, rows: number): void {
+  if (sshPty.isSshSession(sessionId)) return sshPty.resizeSession(sessionId, cols, rows);
   if (!useTmux()) return direct.resizeSession(sessionId, cols, rows);
 
   tmuxSessions.get(sessionId)?.pty.resize(cols, rows);
@@ -332,6 +352,7 @@ export function resizeSession(sessionId: string, cols: number, rows: number): vo
 }
 
 export function killSession(sessionId: string): void {
+  if (sshPty.isSshSession(sessionId)) return sshPty.killSession(sessionId);
   if (!useTmux()) return direct.killSession(sessionId);
 
   const session = tmuxSessions.get(sessionId);
@@ -346,8 +367,9 @@ export function killSession(sessionId: string): void {
 }
 
 export function listSessions(): string[] {
-  if (!useTmux()) return direct.listSessions();
-  return [...tmuxSessions.keys()];
+  const ssh = sshPty.listSessions();
+  if (!useTmux()) return [...direct.listSessions(), ...ssh];
+  return [...tmuxSessions.keys(), ...ssh];
 }
 
 /**
@@ -360,6 +382,7 @@ export function saveAllSessions(): void {
 
 export function killAll(): void {
   shuttingDown = true;
+  sshPty.killAll();
   if (!useTmux()) return direct.killAll();
 
   for (const [id, session] of tmuxSessions) {

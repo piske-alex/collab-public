@@ -79,6 +79,8 @@ async function init() {
 		document.getElementById("workspace-menu-items");
 	const wsAddOption =
 		document.getElementById("ws-add-option");
+	const wsAddSshOption =
+		document.getElementById("ws-add-ssh-option");
 	const settingsOverlay =
 		document.getElementById("settings-overlay");
 	const settingsBackdrop =
@@ -584,6 +586,42 @@ async function init() {
 			broadcastCanvasOpacity();
 		}
 		workspaceManager.switchWorkspace(active);
+	});
+
+	wsAddSshOption.addEventListener("click", async () => {
+		workspaceManager.closeDropdown();
+		const host = prompt("SSH host:");
+		if (!host) return;
+		const username = prompt("Username:", "root");
+		if (!username) return;
+		const portStr = prompt("Port:", "22");
+		if (!portStr) return;
+		const remotePath = prompt("Remote path:", "/home/" + username);
+		if (!remotePath) return;
+		const password = prompt("Password (leave empty for key auth):");
+
+		try {
+			const result = await window.shellApi.workspaceAddSsh({
+				host,
+				port: parseInt(portStr, 10) || 22,
+				username,
+				remotePath,
+				password: password || undefined,
+			});
+			if (!result) return;
+
+			const { workspaces: wsList, active } = result;
+			if (
+				workspaceManager.getWorkspaces().length < wsList.length
+			) {
+				const newPath = wsList[wsList.length - 1];
+				workspaceManager.addWorkspace(newPath);
+				broadcastCanvasOpacity();
+			}
+			workspaceManager.switchWorkspace(active);
+		} catch (err) {
+			alert("SSH connection failed: " + err.message);
+		}
 	});
 
 	// -- Marquee selection --

@@ -6,6 +6,9 @@ import { saveWorkspaceConfig } from "./workspace-config";
 import * as watcher from "./watcher";
 import * as wikilinkIndex from "./wikilink-index";
 import { trackEvent } from "./analytics";
+import { LocalFsBackend, type FsBackend } from "./ssh/fs-backend";
+import { SshFsBackend } from "./ssh/fs-backend-ssh";
+import { isSshWorkspace, sshConnections } from "./ssh";
 
 import {
   registerFilesystemHandlers,
@@ -15,6 +18,7 @@ import {
   registerWorkspaceHandlers,
   startWorkspaceServices,
   getWorkspaceConfig,
+  setBackendCallback,
 } from "./ipc-workspace";
 import { registerKnowledgeHandlers } from "./ipc-knowledge";
 import { registerCanvasHandlers } from "./ipc-canvas";
@@ -27,6 +31,20 @@ let mainWindow: BrowserWindow | null = null;
 const fileFilterRef: { current: FileFilter | null } = {
   current: null,
 };
+const backendRef: { current: FsBackend } = {
+  current: new LocalFsBackend(),
+};
+
+export function setBackendForWorkspace(workspacePath: string): void {
+  if (isSshWorkspace(workspacePath)) {
+    const sftp = sshConnections.getSftp(workspacePath);
+    if (sftp) {
+      backendRef.current = new SshFsBackend(sftp);
+    }
+  } else {
+    backendRef.current = new LocalFsBackend();
+  }
+}
 
 function activeWorkspacePath(): string {
   const { workspaces, active_workspace } = appConfig;
@@ -125,6 +143,7 @@ export function registerIpcHandlers(config: AppConfig): void {
       },
     ) => saveWorkspaceConfig(path, cfg),
     fileFilter: () => fileFilterRef.current,
+    backend: () => backendRef.current,
     forwardToWebview,
     trackEvent,
   };
@@ -145,6 +164,9 @@ export function registerIpcHandlers(config: AppConfig): void {
     forwardToWebview,
     trackEvent,
   };
+
+  // Wire backend switching on workspace change
+  setBackendCallback(setBackendForWorkspace);
 
   // Register domain handlers
   registerFilesystemHandlers(fsCtx);

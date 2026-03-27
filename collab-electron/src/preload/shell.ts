@@ -158,6 +158,14 @@ contextBridge.exposeInMainWorld("shellApi", {
     ipcRenderer.invoke("shell:get-workspace-path"),
 
   workspaceAdd: () => ipcRenderer.invoke("workspace:add"),
+  workspaceAddSsh: (params: {
+    host: string;
+    port: number;
+    username: string;
+    remotePath: string;
+    password?: string;
+    privateKeyPath?: string;
+  }) => ipcRenderer.invoke("workspace:add-ssh", params),
   workspaceRemove: (index: number) =>
     ipcRenderer.invoke("workspace:remove", index),
   workspaceSwitch: (index: number) =>

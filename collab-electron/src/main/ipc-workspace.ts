@@ -28,6 +28,13 @@ import * as wikilinkIndex from "./wikilink-index";
 import * as agentActivity from "./agent-activity";
 import { trackEvent } from "./analytics";
 import type { TreeNode } from "@collab/shared/types";
+import {
+  isSshWorkspace,
+  parseWorkspaceUri,
+  sshConnections,
+  loadSshWorkspaceConfig,
+  saveSshWorkspaceConfig,
+} from "./ssh";
 
 export interface IpcWorkspaceContext {
   mainWindow: () => BrowserWindow | null;
@@ -86,16 +93,45 @@ function initWorkspaceFiles(workspacePath: string): void {
  * Handles watcher, file filter, wikilink index, agent activity,
  * thumbnail cache, and workspace config loading.
  */
-export function startWorkspaceServices(
+type BackendSetter = (workspacePath: string) => void;
+let _backendSetter: BackendSetter | null = null;
+
+export function setBackendCallback(setter: BackendSetter): void {
+  _backendSetter = setter;
+}
+
+export async function startWorkspaceServices(
   path: string,
   fileFilterSetter: (f: FileFilter) => void,
-): void {
+): Promise<void> {
+  if (isSshWorkspace(path)) {
+    // SSH workspace — load local config, skip local-only services
+    const sshConfig = loadSshWorkspaceConfig(path);
+    wsConfigMap.set(path, {
+      selected_file: sshConfig.selected_file,
+      expanded_dirs: sshConfig.expanded_dirs,
+      agent_skip_permissions: sshConfig.agent_skip_permissions,
+    });
+    agentActivity.setWorkspacePath(path);
+    // Ensure SSH connection is alive
+    if (sshConnections.getStatus(path) !== "connected") {
+      try {
+        await sshConnections.connect(path);
+      } catch {
+        // Connection may need password — UI will handle this
+      }
+    }
+    _backendSetter?.(path);
+    return;
+  }
+
   wsConfigMap.set(path, loadWorkspaceConfig(path));
   setThumbnailCacheDir(path);
   watcher.watchWorkspace(path);
   fileFilterSetter(createFileFilter());
   void wikilinkIndex.buildIndex(path);
   agentActivity.setWorkspacePath(path);
+  _backendSetter?.(path);
 }
 
 /**
@@ -319,6 +355,78 @@ export function registerWorkspaceHandlers(
       active: appConfig.active_workspace,
     };
   });
+
+  ipcMain.handle(
+    "workspace:add-ssh",
+    async (
+      _event,
+      params: {
+        host: string;
+        port: number;
+        username: string;
+        remotePath: string;
+        password?: string;
+        privateKeyPath?: string;
+      },
+    ) => {
+      const { buildSshUri } = await import("./ssh/workspace-uri");
+      const uri = buildSshUri(
+        params.host,
+        params.port,
+        params.username,
+        params.remotePath,
+      );
+
+      // Check if already exists
+      const existingIndex = appConfig.workspaces.indexOf(uri);
+      if (existingIndex !== -1) {
+        // Reconnect and switch
+        try {
+          await sshConnections.connect(uri, {
+            password: params.password,
+            privateKeyPath: params.privateKeyPath,
+          });
+        } catch (err: any) {
+          throw new Error(`SSH connection failed: ${err.message}`);
+        }
+        appConfig.active_workspace = existingIndex;
+        saveConfig(appConfig);
+        startWorkspaceServices(uri, (f) => {
+          fileFilterRef.current = f;
+        });
+        notifyWorkspaceChanged(ctx, uri);
+        return {
+          workspaces: appConfig.workspaces,
+          active: existingIndex,
+        };
+      }
+
+      // Connect
+      try {
+        await sshConnections.connect(uri, {
+          password: params.password,
+          privateKeyPath: params.privateKeyPath,
+        });
+      } catch (err: any) {
+        throw new Error(`SSH connection failed: ${err.message}`);
+      }
+
+      appConfig.workspaces.push(uri);
+      appConfig.active_workspace = appConfig.workspaces.length - 1;
+      saveConfig(appConfig);
+      trackEvent("workspace_added", { type: "ssh" });
+
+      startWorkspaceServices(uri, (f) => {
+        fileFilterRef.current = f;
+      });
+      notifyWorkspaceChanged(ctx, uri);
+
+      return {
+        workspaces: appConfig.workspaces,
+        active: appConfig.active_workspace,
+      };
+    },
+  );
 
   ipcMain.handle(
     "workspace:remove",

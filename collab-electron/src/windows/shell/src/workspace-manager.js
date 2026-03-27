@@ -47,16 +47,31 @@ export function createWorkspaceManager({
 		panelNav.classList.remove("dropdown-open");
 	}
 
+	function parseSshUri(uri) {
+		const m = uri.match(/^ssh:\/\/([^@]+)@([^:]+):(\d+)(\/.*)?$/);
+		if (!m) return null;
+		return { username: m[1], host: m[2], port: m[3], remotePath: m[4] || "/" };
+	}
+
 	function renderDropdown() {
 		workspaceMenuItems.innerHTML = "";
 
 		for (let i = 0; i < workspaces.length; i++) {
 			const ws = workspaces[i];
-			const parts = ws.path.split("/");
-			const name = parts.pop() || ws.path;
-			const parent = parts.length > 1
-				? parts.slice(-2).join("/") + "/"
-				: "";
+			const ssh = parseSshUri(ws.path);
+
+			let name, parent;
+			if (ssh) {
+				const pathParts = ssh.remotePath.split("/");
+				name = pathParts.pop() || ssh.remotePath;
+				parent = ssh.username + "@" + ssh.host + ":";
+			} else {
+				const parts = ws.path.split("/");
+				name = parts.pop() || ws.path;
+				parent = parts.length > 1
+					? parts.slice(-2).join("/") + "/"
+					: "";
+			}
 
 			const item = document.createElement("button");
 			item.type = "button";
@@ -101,10 +116,19 @@ export function createWorkspaceManager({
 		}
 
 		if (activeIndex >= 0 && workspaces[activeIndex]) {
-			const { parent, name } =
-				splitFilepath(workspaces[activeIndex].path);
-			workspaceTriggerParent.textContent = parent;
-			workspaceTriggerName.textContent = name;
+			const activeSsh = parseSshUri(workspaces[activeIndex].path);
+			let triggerParent, triggerName;
+			if (activeSsh) {
+				const pathParts = activeSsh.remotePath.split("/");
+				triggerName = pathParts.pop() || activeSsh.remotePath;
+				triggerParent = activeSsh.username + "@" + activeSsh.host + ":";
+			} else {
+				const fp = splitFilepath(workspaces[activeIndex].path);
+				triggerParent = fp.parent;
+				triggerName = fp.name;
+			}
+			workspaceTriggerParent.textContent = triggerParent;
+			workspaceTriggerName.textContent = triggerName;
 		} else {
 			workspaceTriggerParent.textContent = "";
 			workspaceTriggerName.textContent = "No workspace";
