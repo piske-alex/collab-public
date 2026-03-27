@@ -55,6 +55,18 @@ function getSidecarClient(): SidecarClient {
   return sidecarClient;
 }
 
+/**
+ * Determine which backend owns an existing session.
+ * Checks in-memory tracking first, then falls back to persisted metadata.
+ */
+function sessionBackend(sessionId: string): TerminalMode {
+  if (sidecarSessionIds.has(sessionId)) return "sidecar";
+  if (dataSockets.has(sessionId)) return "sidecar";
+  if (sessions.has(sessionId)) return "tmux";
+  const meta = readSessionMeta(sessionId);
+  return meta?.backend ?? "tmux";
+}
+
 export function setShuttingDown(value: boolean): void {
   shuttingDown = value;
 }
@@ -468,9 +480,9 @@ export async function resizeSession(
   cols: number,
   rows: number,
 ): Promise<void> {
-  const mode = terminalMode();
+  const backend = sessionBackend(sessionId);
 
-  if (mode === "sidecar") {
+  if (backend === "sidecar") {
     const client = getSidecarClient();
     await client.resizeSession(sessionId, cols, rows);
     return;
@@ -480,16 +492,14 @@ export async function resizeSession(
   if (!session) return;
   session.pty.resize(cols, rows);
 
-  if (mode === "tmux") {
-    const name = tmuxSessionName(sessionId);
-    try {
-      tmuxExec(
-        "resize-window", "-t", name,
-        "-x", String(cols), "-y", String(rows),
-      );
-    } catch {
-      // Non-fatal
-    }
+  const name = tmuxSessionName(sessionId);
+  try {
+    tmuxExec(
+      "resize-window", "-t", name,
+      "-x", String(cols), "-y", String(rows),
+    );
+  } catch {
+    // Non-fatal
   }
 }
 
@@ -497,9 +507,9 @@ export async function killSession(
   sessionId: string,
 ): Promise<void> {
   clearForegroundCache(sessionId);
-  const mode = terminalMode();
+  const backend = sessionBackend(sessionId);
 
-  if (mode === "sidecar") {
+  if (backend === "sidecar") {
     dataSockets.get(sessionId)?.destroy();
     dataSockets.delete(sessionId);
     try {
@@ -653,10 +663,15 @@ export async function discoverSessions(): Promise<DiscoveredSession[]> {
 
   for (const file of metaFiles) {
     const sessionId = file.replace(".json", "");
+    const meta = readSessionMeta(sessionId);
+
+    // Skip metadata from a different backend — it belongs to the
+    // sidecar process and must not be deleted or returned here.
+    if (meta?.backend === "sidecar") continue;
+
     const name = tmuxSessionName(sessionId);
 
     if (tmuxSet.has(name)) {
-      const meta = readSessionMeta(sessionId);
       if (meta) {
         result.push({ sessionId, meta });
       }
@@ -682,7 +697,7 @@ export async function discoverSessions(): Promise<DiscoveredSession[]> {
 export async function getForegroundProcess(
   sessionId: string,
 ): Promise<string | null> {
-  if (terminalMode() === "sidecar") {
+  if (sessionBackend(sessionId) === "sidecar") {
     try {
       const client = getSidecarClient();
       return await client.getForeground(sessionId);

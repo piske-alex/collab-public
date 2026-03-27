@@ -588,6 +588,14 @@ ipcMain.handle(
 );
 
 ipcMain.handle(
+  "pty:read-meta",
+  (_event, sessionId: string) => {
+    const { readSessionMeta } = require("./tmux");
+    return readSessionMeta(sessionId);
+  },
+);
+
+ipcMain.handle(
   "pty:clean-detached",
   (_event, activeSessionIds: string[]) =>
     pty.cleanDetachedSessions(activeSessionIds),
