@@ -1078,6 +1078,7 @@ async function init() {
 								if (idx >= 0) workspaceManager.switchWorkspace(idx);
 							}
 						}
+						edgeIndicators.panToTile(tile);
 						tileManager.focusCanvasTile(id);
 						break;
 					}
