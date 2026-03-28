@@ -167,6 +167,10 @@ function TerminalTab({ sessionId, visible, restored, scrollbackData }: TerminalT
 			active?.blur();
 		});
 
+		const offShellFocus = window.api.onShellFocus(() => {
+			term.focus();
+		});
+
 		// Debounce resize via rAF to coalesce rapid events
 		let rafId = 0;
 		const resizeObserver = new ResizeObserver((entries) => {
@@ -196,6 +200,7 @@ function TerminalTab({ sessionId, visible, restored, scrollbackData }: TerminalT
 			resizeObserver.disconnect();
 			window.api.offPtyData(handleData);
 			offShellBlur();
+			offShellFocus();
 			term.dispose();
 			fitRef.current = null;
 		};

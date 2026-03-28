@@ -155,6 +155,7 @@ export function createTileManager({
 			clearTileFocusRing();
 			dom.container.classList.add("tile-focused");
 			dom.webview.focus();
+			try { dom.webview.send("shell-focus"); } catch { /* noop */ }
 			onNoteSurfaceFocus("canvas-tile");
 
 			if (

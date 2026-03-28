@@ -38,6 +38,8 @@ type FocusTabCb = (ptySessionId: string) => void;
 const focusTabListeners = new Set<FocusTabCb>();
 type ShellBlurCb = () => void;
 const shellBlurListeners = new Set<ShellBlurCb>();
+type ShellFocusCb = () => void;
+const shellFocusListeners = new Set<ShellFocusCb>();
 
 ipcRenderer.on("pty:data", (_event, payload) => {
   for (const cb of dataListeners) cb(payload);
@@ -69,6 +71,9 @@ ipcRenderer.on("focus-tab", (_event, ptySessionId: string) => {
 });
 ipcRenderer.on("shell-blur", () => {
   for (const cb of shellBlurListeners) cb();
+});
+ipcRenderer.on("shell-focus", () => {
+  for (const cb of shellFocusListeners) cb();
 });
 
 ipcRenderer.on("replay:data", (_event, msg) => {
@@ -473,6 +478,13 @@ contextBridge.exposeInMainWorld("api", {
     shellBlurListeners.add(cb);
     return () => {
       shellBlurListeners.delete(cb);
+    };
+  },
+
+  onShellFocus: (cb: ShellFocusCb) => {
+    shellFocusListeners.add(cb);
+    return () => {
+      shellFocusListeners.delete(cb);
     };
   },
 
