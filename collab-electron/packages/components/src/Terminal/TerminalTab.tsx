@@ -26,6 +26,7 @@ function TerminalTab({ sessionId, visible, restored, scrollbackData }: TerminalT
 
 	useEffect(() => {
 		if (!containerRef.current) return;
+		const isMac = navigator.platform.startsWith("Mac");
 
 		const term = new Terminal({
 			theme: getTheme(),
@@ -98,9 +99,16 @@ function TerminalTab({ sessionId, visible, restored, scrollbackData }: TerminalT
 			// Windows/Linux: Ctrl+C with selection → copy, Ctrl+V → paste
 			// On macOS Cmd+C/V is handled natively by the OS; on Windows
 			// we must handle it explicitly since Ctrl+C is also SIGINT.
-			if (e.type === "keydown" && e.ctrlKey && !e.metaKey) {
+			if (e.type === "keydown" && e.ctrlKey && !e.metaKey && !isMac) {
 				if (e.key === "c" && term.hasSelection()) {
-					navigator.clipboard.writeText(term.getSelection());
+					// getSelection() returns raw grid text with trailing
+					// spaces per row. Trim each line to get clean text.
+					const raw = term.getSelection();
+					const clean = raw
+						.split("\n")
+						.map((line) => line.trimEnd())
+						.join("\n");
+					navigator.clipboard.writeText(clean);
 					term.clearSelection();
 					return false; // prevent SIGINT
 				}
@@ -114,6 +122,17 @@ function TerminalTab({ sessionId, visible, restored, scrollbackData }: TerminalT
 
 			return true;
 		});
+
+		// Intercept native paste to prevent double-paste on Windows/Linux.
+		// Our Ctrl+V handler already writes to pty via ptyWrite; block the
+		// native paste so xterm.onData doesn't also send it.
+		const onPaste = (e: ClipboardEvent) => {
+			if (!isMac) {
+				e.preventDefault();
+				e.stopPropagation();
+			}
+		};
+		containerRef.current.addEventListener("paste", onPaste, true);
 
 		term.onData((data: string) => {
 			window.api.ptyWrite(sessionId, data);
@@ -190,12 +209,14 @@ function TerminalTab({ sessionId, visible, restored, scrollbackData }: TerminalT
 		};
 		mediaQuery.addEventListener("change", onThemeChange);
 
+		const container = containerRef.current;
 		return () => {
 			if (flushTimer !== undefined) {
 				clearTimeout(flushTimer);
 				flushData();
 			}
 			cancelAnimationFrame(rafId);
+			container.removeEventListener("paste", onPaste, true);
 			mediaQuery.removeEventListener("change", onThemeChange);
 			resizeObserver.disconnect();
 			window.api.offPtyData(handleData);
